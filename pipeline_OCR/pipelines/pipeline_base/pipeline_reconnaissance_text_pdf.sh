@@ -51,12 +51,26 @@ echo "📄 Étape 1 : PDF → TIFF"
 pdftoppm -r 300 "$PDF_FILE" "$IMAGES_DIR/page" -tiff
 
 echo "🔧 Étape 2 : ScanTailor"
-docker run -v "$(realpath "$WORKDIR")":/data scantailor-cli   --layout=1   --content-detection=normal   --deskew=auto   --output-dpi=300   "/data/${FILENAME}_traitement/${FILENAME}_images"   "/data/${FILENAME}_traitement/${FILENAME}_scanned"
+docker run -v "$(realpath "$WORKDIR")":/data scantailor-cli \
+  --layout=1 \
+  --content-detection=normal \
+  --deskew=auto \
+  --output-dpi=300 \
+  --despeckle=strong \
+  -c textord_no_rejects=1 \
+  "/data/${FILENAME}_traitement/${FILENAME}_images" \
+  "/data/${FILENAME}_traitement/${FILENAME}_scanned"
 
 echo "🔠 Étape 3 : OCR"
 for img in "$SCANNED_DIR"/*.tif; do
   base=$(basename "$img" .tif)
-  tesseract "$img" "$OCR_DIR/$base" -l fra --psm 4 --oem 1 -c tessedit_create_pdf=1 -c tessedit_create_txt=1
+  tesseract "$img" "$OCR_DIR/$base" -l fra \
+    --psm 6 --oem 1 \
+    -c preserve_interword_spaces=1 \
+    -c tessedit_char_blacklist='|~' \
+    -c textord_heavy_nr=1 \
+    -c tessedit_create_pdf=1 \
+    -c tessedit_create_txt=1
   mv "$OCR_DIR/$base.txt" "$TXT_DIR/$base.txt"
 done
 
