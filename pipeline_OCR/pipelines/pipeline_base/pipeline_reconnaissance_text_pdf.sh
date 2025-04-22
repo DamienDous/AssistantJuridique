@@ -51,15 +51,15 @@ echo "📄 Étape 1 : PDF → TIFF"
 pdftoppm -r 300 "$PDF_FILE" "$IMAGES_DIR/page" -tiff
 
 echo "🔧 Étape 2 : ScanTailor"
-docker run -v "$(realpath "$WORKDIR")":/data scantailor-cli \
+scantailor-cli \
   --layout=1 \
   --content-detection=normal \
   --deskew=auto \
   --output-dpi=300 \
   --despeckle=strong \
   -c textord_no_rejects=1 \
-  "/data/${FILENAME}_traitement/${FILENAME}_images" \
-  "/data/${FILENAME}_traitement/${FILENAME}_scanned"
+  "$IMAGES_DIR" \
+  "$SCANNED_DIR"
 
 echo "🔠 Étape 3 : OCR"
 for img in "$SCANNED_DIR"/*.tif; do
@@ -75,7 +75,7 @@ for img in "$SCANNED_DIR"/*.tif; do
 done
 
 echo "🧠 Étape 4 : Correction avec LanguageTool"
-python "$(dirname "$0")/04_correction.py"
+python3 "$(dirname "$0")/04_correction.py"
 
 # 📄 Dossier contenant le texte corrigé
 TXT_DIR="${BASE_OUT}/${FILENAME}_txt"
