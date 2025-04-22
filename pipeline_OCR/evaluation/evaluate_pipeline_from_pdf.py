@@ -7,10 +7,10 @@ from Levenshtein import distance as levenshtein_distance
 import difflib
 
 # 📁 Répertoires
-INPUT_PDF_DIR = Path("input_pdf")
-REFERENCE_TXT_DIR = Path("reference_txt")
-LOG_DIR = Path("logs")
-TEMP_DIR = Path("processed_files/temp_processing")
+INPUT_PDF_DIR = Path("evaluation/input_pdf")
+REFERENCE_TXT_DIR = Path("evaluation/reference_txt")
+LOG_DIR = Path("evaluation/logs")
+TEMP_DIR = Path("processed_files/temp_evaluation")
 SCRIPT_PATH = Path(__file__).parent / "pipeline_reconnaissance_text_pdf.sh"
 
 # 📊 Fonctions d'évaluation
