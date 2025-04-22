@@ -1,0 +1,11 @@
+# Tout ignorer sauf les fichiers essentiels
+*
+
+# Exceptions (à inclure explicitement)
+!scripts/
+!scripts/**
+!requirements.txt
+!CMakeLists.txt
+!docs/
+!docs/README.md
+!.gitignore
