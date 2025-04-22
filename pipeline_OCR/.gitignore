@@ -9,3 +9,8 @@
 !docs/
 !docs/README.md
 !.gitignore
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
