@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# 🔄 Fichiers générés automatiquement
+pipeline_OCR/processed_files/
+pipeline_OCR/evaluation/logs/
+pipeline_OCR/traitement_lot/output/
+
+# 🧪 Environnements Python
+.env/
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
