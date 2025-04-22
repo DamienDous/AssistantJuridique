@@ -1,16 +1,17 @@
-# Tout ignorer sauf les fichiers essentiels
-*
-
-# Exceptions (à inclure explicitement)
-!scripts/
-!scripts/**
-!requirements.txt
-!CMakeLists.txt
-!docs/
-!docs/README.md
-!.gitignore
-
-# macOS
+# Fichiers macOS
 .DS_Store
-.AppleDouble
-.LSOverride
+
+# 🔄 Fichiers temporaires générés par le pipeline
+processed_files/
+evaluation/logs/
+traitement_lot/output/
+
+# 🧪 Environnements Python locaux
+.env/
+.venv/
+__pycache__/
+*.pyc
+
+# 🔧 Fichiers spécifiques à certains éditeurs
+.vscode/
+.idea/
