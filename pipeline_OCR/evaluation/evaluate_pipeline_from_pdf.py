@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 from pathlib import Path
 import pandas as pd
@@ -7,11 +8,13 @@ from Levenshtein import distance as levenshtein_distance
 import difflib
 
 # 📁 Répertoires
-INPUT_PDF_DIR = Path("evaluation/input_pdf")
-REFERENCE_TXT_DIR = Path("evaluation/reference_txt")
-LOG_DIR = Path("evaluation/logs")
-TEMP_DIR = Path("processed_files/temp_evaluation")
-SCRIPT_PATH = Path(__file__).parent / "pipeline_reconnaissance_text_pdf.sh"
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+INPUT_PDF_DIR = BASE_DIR / "evaluation/input_pdf"
+REFERENCE_TXT_DIR = BASE_DIR / "evaluation/reference_txt"
+LOG_DIR = BASE_DIR / "evaluation/logs"
+TEMP_DIR = BASE_DIR / "processed_files/temp_evaluation"
+SCRIPT_PATH = BASE_DIR / "pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh"
 
 # 📊 Fonctions d'évaluation
 def punctuation_accuracy(ref, pred):
@@ -49,9 +52,9 @@ def main():
     (REFERENCE_TXT_DIR).mkdir(parents=True, exist_ok=True)
     (LOG_DIR).mkdir(parents=True, exist_ok=True)
     (TEMP_DIR).mkdir(parents=True, exist_ok=True)
-    Path("processed_files").mkdir(parents=True, exist_ok=True)
-    Path("results").mkdir(parents=True, exist_ok=True)
-    Path("docs").mkdir(parents=True, exist_ok=True)
+    (BASE_DIR / "processed_files").mkdir(parents=True, exist_ok=True)
+    (BASE_DIR / "results").mkdir(parents=True, exist_ok=True)
+    (BASE_DIR / "docs").mkdir(parents=True, exist_ok=True)
 
     LOG_DIR.mkdir(exist_ok=True)
     TEMP_DIR.mkdir(exist_ok=True)

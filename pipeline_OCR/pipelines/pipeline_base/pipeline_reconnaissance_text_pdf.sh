@@ -8,7 +8,15 @@ if [ $# -ne 2 ]; then
 fi
 
 # Création automatique des répertoires nécessaires
-mkdir -p input_pdf processed_files reference_txt results docs
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+mkdir -p "$ROOT_DIR/pipeline_OCR/input_pdf"
+mkdir -p "$ROOT_DIR/pipeline_OCR/processed_files"
+mkdir -p "$ROOT_DIR/pipeline_OCR/evaluation/reference_txt"
+mkdir -p "$ROOT_DIR/pipeline_OCR/evaluation/logs"
+mkdir -p "$ROOT_DIR/pipeline_OCR/traitement_lot/output"
+mkdir -p "$ROOT_DIR/pipeline_OCR/docs"
 
 # Vérification des arguments
 if [ $# -ne 2 ]; then
