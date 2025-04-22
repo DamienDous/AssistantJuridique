@@ -1,5 +1,4 @@
 pandas
 jiwer
 python-Levenshtein
-difflib
 language-tool-python
