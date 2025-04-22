@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u  # Erreur si variable non définie
 
 # Vérification des arguments
 if [ $# -ne 2 ]; then
@@ -10,13 +11,6 @@ fi
 # Création automatique des répertoires nécessaires
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-
-mkdir -p "$ROOT_DIR/pipeline_OCR/input_pdf"
-mkdir -p "$ROOT_DIR/pipeline_OCR/processed_files"
-mkdir -p "$ROOT_DIR/pipeline_OCR/evaluation/reference_txt"
-mkdir -p "$ROOT_DIR/pipeline_OCR/evaluation/logs"
-mkdir -p "$ROOT_DIR/pipeline_OCR/traitement_lot/output"
-mkdir -p "$ROOT_DIR/pipeline_OCR/docs"
 
 # Vérification des arguments
 if [ $# -ne 2 ]; then
@@ -34,7 +28,7 @@ if [ ! -f "$PDF_FILE" ]; then
 fi
 
 # Export de TESSDATA_PREFIX si non défini
-if [ -z "$TESSDATA_PREFIX" ]; then
+if [ -z "${TESSDATA_PREFIX:-}" ]; then
   if [ -f "$HOME/Fork/tessdata/fra.traineddata" ]; then
     export TESSDATA_PREFIX="$HOME/Fork/tessdata"
     echo "ℹ️ TESSDATA_PREFIX défini à $TESSDATA_PREFIX"
@@ -48,7 +42,7 @@ IMAGES_DIR="${BASE_OUT}/${FILENAME}_images"
 SCANNED_DIR="${BASE_OUT}/${FILENAME}_scanned"
 OCR_DIR="${BASE_OUT}/${FILENAME}_ocr"
 TXT_DIR="${BASE_OUT}/${FILENAME}_txt"
-CORR_DIR="$WORKDIR/${BASENAME}_traitement/${BASENAME}_txt_corrige"
+CORR_DIR="$WORKDIR/${FILENAME}_traitement/${FILENAME}_txt_corrige"
 FINAL_PDF="${BASE_OUT}/${FILENAME}_final_corrige.pdf"
 
 mkdir -p "$IMAGES_DIR" "$SCANNED_DIR" "$OCR_DIR" "$TXT_DIR" "$CORR_DIR"
