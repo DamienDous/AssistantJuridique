@@ -1,0 +1,27 @@
+# Forcer LF pour tous les fichiers texte
+* text=auto eol=lf
+
+# Scripts shell (Bash)
+*.sh text eol=lf
+
+# Python
+*.py text eol=lf
+
+# Markdown, texte, config
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+
+# Fichiers Makefile et Dockerfile
+Makefile text eol=lf
+Dockerfile text eol=lf
+
+# Désactiver toute conversion sur les fichiers binaires
+*.pdf binary
+*.zip binary
+*.png binary
+*.jpg binary

@@ -100,3 +100,7 @@ echo "🧾 Étape 5 : Fusion PDF"
 pdfunite "$OCR_DIR"/*.pdf "$FINAL_PDF"
 
 echo "✅ Pipeline terminé ! PDF final corrigé : $FINAL_PDF"
+
+# 📥 Étape 6 : Copie du PDF final dans output local
+cp "$FINAL_PDF" "$ROOT_DIR/traitement_lot/output/${FILENAME}_final_corrige.pdf"
+echo "✅ PDF final copié dans /app/pipeline_OCR/traitement_lot/output/"
