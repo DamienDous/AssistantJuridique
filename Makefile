@@ -19,12 +19,11 @@ ifndef FILE
 endif
 	@mkdir -p $(OUTPUT_DIR)
 	MSYS_NO_PATHCONV=1 docker run --rm \
-		-v "$$($(PWD_CMD)):/app" \
-		-v "$$($(PWD_CMD))/.lt_cache:/root/.cache/language_tool_python" \
+		-v language_tool_cache:/root/.cache/language_tool_python \
 		$(IMAGE_NAME) \
-		bash -c "pipeline_OCR/pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh \
-		\"$(INPUT_DIR)/$(FILE)\" \
-		\"$(OUTPUT_DIR)/temp_$(basename $(FILE) .pdf)\""
+		pipeline_OCR/pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh \
+		$(INPUT_DIR)/$(FILE) \
+		$(OUTPUT_DIR)/temp_$(basename $(FILE) .pdf)
 
 run-safe:
 	@if [ "$$MSYSTEM" = "MINGW64" ] || [ "$$MSYSTEM" = "MSYS" ]; then \
