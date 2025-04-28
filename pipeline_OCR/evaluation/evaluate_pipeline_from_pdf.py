@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 import sys
 import subprocess
@@ -9,12 +12,15 @@ import difflib
 
 # 📁 Répertoires
 BASE_DIR = Path(__file__).resolve().parent.parent
+INPUT_PDF_DIR = BASE_DIR / "evaluation" / "input_pdf"
+REFERENCE_TXT_DIR = BASE_DIR / "evaluation" / "reference_txt"
+LOG_DIR = BASE_DIR / "evaluation" / "logs"
+TEMP_DIR = BASE_DIR / "evaluation" / "temp_evaluation"
 
-INPUT_PDF_DIR = BASE_DIR / "evaluation/input_pdf"
-REFERENCE_TXT_DIR = BASE_DIR / "evaluation/reference_txt"
-LOG_DIR = BASE_DIR / "evaluation/logs"
-TEMP_DIR = BASE_DIR / "processed_files/temp_evaluation"
-SCRIPT_PATH = BASE_DIR / "pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh"
+# 🛠 Scripts du pipeline
+PIPELINE_SH = BASE_DIR / "pipeline_OCR" / "pipelines" / "pipeline_base" / "pipeline_reconnaissance_text_pdf.sh"
+CLEAN_SH    = BASE_DIR / "clean_text.sh"
+CORR_PY     = BASE_DIR / "pipeline_OCR" / "pipelines" / "pipeline_base" / "04_correction.py"
 
 # 📊 Fonctions d'évaluation
 def punctuation_accuracy(ref, pred):
@@ -23,70 +29,74 @@ def punctuation_accuracy(ref, pred):
     pred_punct = ''.join([c for c in pred if c in string.punctuation])
     return difflib.SequenceMatcher(None, ref_punct, pred_punct).ratio()
 
-def evaluate_file(reference_path, generated_path):
-    with open(reference_path, "r", encoding="utf-8") as f:
-        ref_text = f.read()
-    with open(generated_path, "r", encoding="utf-8") as f:
-        gen_text = f.read()
-
-    score_lev = levenshtein_distance(ref_text, gen_text) / max(len(ref_text), 1)
-    score_wer = wer(ref_text, gen_text)
-    score_punct = punctuation_accuracy(ref_text, gen_text)
-
+def evaluate_file(ref_path, pred_path):
+    ref = ref_path.read_text(encoding="utf-8")
+    pred = pred_path.read_text(encoding="utf-8")
+    score_lev = levenshtein_distance(ref, pred) / max(len(ref), 1)
+    score_wer = wer(ref, pred)
+    score_punct = punctuation_accuracy(ref, pred)
     return {
-        "filename": reference_path.name,
+        "filename": ref_path.name,
         "levenshtein": score_lev,
         "wer": score_wer,
         "punctuation": score_punct
     }
 
-# 🚀 Main script
 def main():
-    print("Répertoire courant :", os.getcwd())
-    print("📂 Lancement du script :", SCRIPT_PATH)
-    print("📄 Existe :", SCRIPT_PATH.exists())
-    print("🛠️  Est exécutable :", os.access(SCRIPT_PATH, os.X_OK))
-
-    # Création automatique des répertoires nécessaires
-    (INPUT_PDF_DIR).mkdir(parents=True, exist_ok=True)
-    (REFERENCE_TXT_DIR).mkdir(parents=True, exist_ok=True)
-    (LOG_DIR).mkdir(parents=True, exist_ok=True)
-    (TEMP_DIR).mkdir(parents=True, exist_ok=True)
-    (BASE_DIR / "processed_files").mkdir(parents=True, exist_ok=True)
-    (BASE_DIR / "results").mkdir(parents=True, exist_ok=True)
-    (BASE_DIR / "docs").mkdir(parents=True, exist_ok=True)
-
-    LOG_DIR.mkdir(exist_ok=True)
-    TEMP_DIR.mkdir(exist_ok=True)
-    REFERENCE_TXT_DIR.mkdir(exist_ok=True)
+    # Prep dirs
+    for d in (INPUT_PDF_DIR, REFERENCE_TXT_DIR, LOG_DIR, TEMP_DIR):
+        d.mkdir(parents=True, exist_ok=True)
 
     results = []
 
     for pdf_path in sorted(INPUT_PDF_DIR.glob("*.pdf")):
-        pdf_name = pdf_path.stem
-        workdir = TEMP_DIR / pdf_name
-        output_txt = workdir / f"{pdf_name}_traitement" / f"{pdf_name}_txt_corrige" / f"{pdf_name}.txt"
-        ref_txt = REFERENCE_TXT_DIR / f"{pdf_name}.txt"
+        stem = pdf_path.stem
+        workdir = TEMP_DIR / stem
+        # 1) lancer le pipeline OCR → extraction .txt brut
+        print(f"▶️ OCR + extraction pour {stem}")
+        subprocess.run([
+            "bash", str(PIPELINE_SH),
+            str(pdf_path), str(workdir)
+        ], check=True)
 
-        print(f"▶️ Traitement de {pdf_name}...")
+        # chemins intermediaires
+        raw_txt = workdir / f"{stem}_traitement" / f"{stem}.txt"
+        clean_txt = workdir / f"{stem}_clean.txt"
+        corr_dir  = workdir / f"{stem}_corrige"
+        corr_txt  = corr_dir / f"{stem}.txt"
 
-        # ✅ Appel de bash avec chemin absolu
-        subprocess.run(["bash", str(SCRIPT_PATH.resolve()), str(pdf_path), str(workdir)], check=True)
+        # 2) nettoyage post-OCR
+        print(f"🧹 Nettoyage post-OCR pour {stem}")
+        subprocess.run([
+            "bash", str(CLEAN_SH),
+            str(raw_txt), str(clean_txt)
+        ], check=True)
 
-        if output_txt.exists() and ref_txt.exists():
-            metrics = evaluate_file(ref_txt, output_txt)
+        # 3) correction LanguageTool + dictionnaire
+        print(f"🧠 Correction linguistique pour {stem}")
+        subprocess.run([
+            "python3", str(CORR_PY),
+            str(clean_txt), str(corr_dir)
+        ], check=True)
+
+        # 4) évaluation si on a bien le ref et la sortie corrigée
+        ref_txt = REFERENCE_TXT_DIR / f"{stem}.txt"
+        if corr_txt.exists() and ref_txt.exists():
+            metrics = evaluate_file(ref_txt, corr_txt)
             results.append(metrics)
         else:
-            print(f"⚠️ Fichier manquant pour comparaison : {pdf_name}")
+            print(f"⚠️ Fichiers manquants : {corr_txt} ou {ref_txt}")
 
-    df = pd.DataFrame(results)
-    if not df.empty:
+    # 5) agrégation et rapport
+    if results:
+        df = pd.DataFrame(results)
         df["score_global"] = 1 - (df["levenshtein"] + df["wer"]) / 2
-        df.to_csv(LOG_DIR / "scores_from_pdf.csv", index=False)
+        out_csv = LOG_DIR / "scores_evaluation.csv"
+        df.to_csv(out_csv, index=False)
+        print(f"✅ Scores écrits dans {out_csv}")
         print(df)
     else:
-        print("❌ Aucun résultat à évaluer : vérifie les fichiers de sortie et de référence.")
-        print(df)
+        print("❌ Aucune métrique calculée, vérifie les sorties.")
 
 if __name__ == "__main__":
     main()

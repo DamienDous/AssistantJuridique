@@ -84,6 +84,12 @@ RUN apt-get update && \
 && update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
 && rm -rf /var/lib/apt/lists/*
 
+# installer et générer le locale français
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends locales \
+ && locale-gen fr_FR.UTF-8 \
+ && update-locale LANG=fr_FR.UTF-8 LC_ALL=fr_FR.UTF-8
+ 
 # 2. Copier les binaires compilés et données
 COPY --from=builder /usr/local/bin/tesseract /usr/local/bin/
 COPY --from=builder /usr/local/bin/scantailor-cli /usr/local/bin/
@@ -100,6 +106,9 @@ COPY --from=builder /usr/local/lib/python3.6/dist-packages /usr/local/lib/python
 
 # copier les scripts CLI installés par pip dans builder
 COPY --from=builder /usr/local/bin/ocrmypdf /usr/local/bin/
+COPY dico_juridique.txt /app/dico_juridique.txt
+# Copier votre script de structuration
+COPY pipeline_OCR/pipelines/pipeline_base/structure_juridique.py /app/pipeline_OCR/pipelines/pipeline_base/structure_juridique.py
 
 # 4. Copier ton code APP
 WORKDIR /app
