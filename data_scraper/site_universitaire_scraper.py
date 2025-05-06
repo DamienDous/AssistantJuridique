@@ -14,6 +14,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 import unicodedata
+import subprocess
+import re
+import sys
+from collections import deque
+from urllib.parse import urlparse, urljoin
 
 # Liste des mots-clés pertinents
 keywords = [
@@ -26,6 +31,45 @@ exclude_patterns = ["mentions-legales", "cookies", "plan-du-site", "/legal", "/p
 
 # Journal de scraping CSV
 log_entries = []
+
+def detect_max_depth(url, candidate_max=10):
+    """
+    Utilise wget.exe --spider pour scanner la profondeur du site sans en sortir.
+    Calcule la profondeur comme le nombre de segments non vides dans le chemin.
+    """
+    netloc = urlparse(url).netloc
+    cmd = [
+        "wget.exe",
+        "--spider",
+        "--recursive", f"--level={candidate_max}",
+        "--no-verbose",
+        f"--domains={netloc}",
+        "--no-parent",
+        url
+    ]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    max_depth = 0
+    url_regex = re.compile(r"(https?://[^\s'\"<>]+)")
+    for line in proc.stdout:
+        # tenter d'extraire une URL
+        m = url_regex.search(line)
+        if not m:
+            continue
+        link = m.group(1).rstrip('.,;')
+
+        parsed = urlparse(link)
+        if parsed.netloc != netloc:
+            continue
+
+        # nombre de segments dans le path : /a/b/c/ => ['a','b','c'] -> depth=3
+        segments = [seg for seg in parsed.path.split("/") if seg]
+        depth = len(segments)
+        if depth > max_depth:
+            max_depth = depth
+
+    proc.wait()
+    return max_depth
 
 def init_driver(headless=True):
     options = uc.ChromeOptions()
@@ -71,13 +115,13 @@ def save_csv_log(log_entries, output_file="log_scraping.csv"):
         for entry in log_entries:
             writer.writerow(entry)
 
-def scrape_website(url, headless=True):
+def scrape_website(url, headless=True, max_depth=5):
     visited_urls = set()
     base_url = "/".join(url.split("/")[:3])
 
     try:
         driver = init_driver(headless=headless)
-        visit_page(url, driver, visited_urls, base_url, depth=0, max_depth=5)
+        visit_page(url, driver, visited_urls, base_url, depth=0, max_depth=max_depth)
     except Exception as e:
         print(f"Erreur lors du scraping de {url}: {e}")
     finally:
@@ -271,7 +315,8 @@ def download_pdf(pdf_url, base_url):
         print(f"Erreur lors du téléchargement du PDF {pdf_url}: {e}")
 
 if __name__ == "__main__":
-    import sys
     url = sys.argv[1] if len(sys.argv) > 1 else "https://idai.pantheonsorbonne.fr"
     headless = "--no-headless" not in sys.argv
-    scrape_website(url, headless=headless)
+    detected = detect_max_depth(url, candidate_max=10)
+    print(f"👉 Profondeur max détectée pour {url} : {detected}")
+    scrape_website(url, headless=headless, max_depth=detected)
