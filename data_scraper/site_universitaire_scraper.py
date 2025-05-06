@@ -19,39 +19,44 @@ keywords = [
     "obligations", "contrat", "exemple de cas pratique", "corrigé", "consultation"
 ]
 
-# Patterns de pages à ignorer
+# Patterns de pages à ignorer (à enrichir si besoin)
 exclude_patterns = ["mentions-legales", "cookies", "plan-du-site", "/legal", "/privacy", "/accessibilite"]
 
 def init_driver(headless=True):
     options = uc.ChromeOptions()
+    if headless:
+        options.add_argument("--headless=new")  # Headless moderne
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
-    if headless:
-        options.add_argument("--headless=new")
-    
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                         "AppleWebKit/537.36 (KHTML, like Gecko) "
+                         "Chrome/123.0.0.0 Safari/537.36")
+
+    print(f"Initialisation du driver Chrome en mode {'headless' if headless else 'visuel'}…")
     driver = uc.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-    # Supprimer navigator.webdriver pour passer plus incognito
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": """
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """
-    })
+    # Masquer navigator.webdriver
+    driver.execute_cdp_cmd(
+        "Page.addScriptToEvaluateOnNewDocument",
+        {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """
+        },
+    )
 
     return driver
 
-def scrape_website(url):
+def scrape_website(url, headless=True):
     visited_urls = set()
     base_url = "/".join(url.split("/")[:3])
 
     try:
-        print("Initialisation du driver Chrome...")
-        driver = init_driver(headless=True)
-        visit_page(url, driver, visited_urls, base_url)
+        driver = init_driver(headless=headless)
+        visit_page(url, driver, visited_urls, base_url, depth=0, max_depth=5)
     except Exception as e:
         print(f"Erreur lors du scraping de {url}: {e}")
     finally:
@@ -61,9 +66,13 @@ def scrape_website(url):
         except Exception as e:
             print(f"Erreur lors de la fermeture du navigateur : {e}")
 
-def visit_page(url, driver, visited_urls, base_url, retries=3):
+def visit_page(url, driver, visited_urls, base_url, depth=0, max_depth=5, retries=3):
     if url in visited_urls or any(p in url for p in exclude_patterns):
         print(f"Page ignorée ou déjà visitée : {url}")
+        return
+
+    if depth > max_depth:
+        print(f"⛔ Profondeur max atteinte pour {url}")
         return
 
     visited_urls.add(url)
@@ -88,15 +97,15 @@ def visit_page(url, driver, visited_urls, base_url, retries=3):
                 and href not in visited_urls
                 and not any(x in href for x in ["mailto:", "javascript:", "#logout", "#"])
             ):
-                time.sleep(random.uniform(0.5, 1.5))
+                time.sleep(random.uniform(0.3, 1.2))
                 print(f"Suivi du lien : {href}")
-                visit_page(href, driver, visited_urls, base_url)
+                visit_page(href, driver, visited_urls, base_url, depth=depth+1, max_depth=max_depth)
 
     except StaleElementReferenceException as e:
         print(f"Erreur d'élément obsolète sur {url}, réessai... {e}")
         if retries > 0:
             time.sleep(2)
-            visit_page(url, driver, visited_urls, base_url, retries - 1)
+            visit_page(url, driver, visited_urls, base_url, depth=depth, max_depth=max_depth, retries=retries - 1)
         else:
             print(f"Échec après plusieurs tentatives sur {url}")
     except TimeoutException as e:
@@ -170,7 +179,7 @@ def scrape_and_save_txt(driver, base_url):
         text_lower = text.lower()
 
         if any(k in text_lower for k in keywords):
-            print("✅ Mots-clés trouvés dans le TEXTE, sauvegarde en cours…")
+            print("\033[92m✅ Mots-clés trouvés dans le TEXTE, sauvegarde en cours…\033[0m")
 
             title_tag = soup.find("title")
             desc_tag = soup.find("meta", attrs={"name": "description"})
@@ -188,7 +197,7 @@ def scrape_and_save_txt(driver, base_url):
 
             filename = driver.current_url.replace("https://", "").replace("http://", "").replace("/", "_") + ".txt"
             path = os.path.join(site_name, filename)
-            with open(path, "w", encoding="utf-8") as f:
+            with open(path, "w", encoding="utf-8-sig") as f:
                 f.write(header + "\n" + text)
             print(f"[TXT] sauvegardé : {path}")
         else:
@@ -226,4 +235,5 @@ def download_pdf(pdf_url, base_url):
 if __name__ == "__main__":
     import sys
     url = sys.argv[1] if len(sys.argv) > 1 else "https://idai.pantheonsorbonne.fr"
-    scrape_website(url)
+    headless = "--no-headless" not in sys.argv
+    scrape_website(url, headless=headless)
