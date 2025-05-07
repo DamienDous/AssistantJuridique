@@ -32,45 +32,6 @@ exclude_patterns = ["mentions-legales", "cookies", "plan-du-site", "/legal", "/p
 # Journal de scraping CSV
 log_entries = []
 
-def detect_max_depth(url, candidate_max=10):
-    """
-    Utilise wget.exe --spider pour scanner la profondeur du site sans en sortir.
-    Calcule la profondeur comme le nombre de segments non vides dans le chemin.
-    """
-    netloc = urlparse(url).netloc
-    cmd = [
-        "wget.exe",
-        "--spider",
-        "--recursive", f"--level={candidate_max}",
-        "--no-verbose",
-        f"--domains={netloc}",
-        "--no-parent",
-        url
-    ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-
-    max_depth = 0
-    url_regex = re.compile(r"(https?://[^\s'\"<>]+)")
-    for line in proc.stdout:
-        # tenter d'extraire une URL
-        m = url_regex.search(line)
-        if not m:
-            continue
-        link = m.group(1).rstrip('.,;')
-
-        parsed = urlparse(link)
-        if parsed.netloc != netloc:
-            continue
-
-        # nombre de segments dans le path : /a/b/c/ => ['a','b','c'] -> depth=3
-        segments = [seg for seg in parsed.path.split("/") if seg]
-        depth = len(segments)
-        if depth > max_depth:
-            max_depth = depth
-
-    proc.wait()
-    return max_depth
-
 def init_driver(headless=True):
     options = uc.ChromeOptions()
     if headless:
@@ -317,6 +278,6 @@ def download_pdf(pdf_url, base_url):
 if __name__ == "__main__":
     url = sys.argv[1] if len(sys.argv) > 1 else "https://idai.pantheonsorbonne.fr"
     headless = "--no-headless" not in sys.argv
-    detected = detect_max_depth(url, candidate_max=10)
-    print(f"👉 Profondeur max détectée pour {url} : {detected}")
-    scrape_website(url, headless=headless, max_depth=detected)
+    MAX_DEPTH = 3
+    print(f"👉 Scraping de {url} jusqu’à la profondeur {MAX_DEPTH}")
+    scrape_website(url, headless=headless, max_depth=MAX_DEPTH)
