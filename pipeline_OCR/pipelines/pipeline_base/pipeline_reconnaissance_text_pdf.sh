@@ -1,49 +1,55 @@
 #!/bin/bash
-set -euo pipefail
+set -e
+set -u  # Erreur si variable non définie
 
-# Usage: $0 input.pdf workdir
-IN_PDF="$1"
+# Vérification des arguments
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 chemin/vers/fichier.pdf chemin/vers/dossier_temporaire"
+  exit 1
+fi
+
+# Création des répertoires
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+PDF_FILE="$1"
 WORKDIR="$2"
+export WORKDIR
 
-# variables de chemin
-FNAME=$(basename "$IN_PDF" .pdf)
-BASE="$WORKDIR/${FNAME}_traitement"
-IMGDIR="$BASE/${FNAME}_images"
-SCANDIR="$BASE/${FNAME}_scanned"
-CLEANPDF="$BASE/${FNAME}_scanned.pdf"
-OCRPDF="$BASE/${FNAME}_ocr.pdf"
+if [ ! -f "$PDF_FILE" ]; then
+  echo "❌ Le fichier PDF n'existe pas : $PDF_FILE"
+  exit 1
+fi
 
-mkdir -p "$IMGDIR" "$SCANDIR"
+# Chemins de travail
+FILENAME=$(basename "$PDF_FILE" .pdf)
+BASE_OUT="$WORKDIR/${FILENAME}_traitement"
+IMAGES_DIR="${BASE_OUT}/${FILENAME}_images"
+SCANNED_DIR="${BASE_OUT}/${FILENAME}_scanned"
+TXT_DIR="${BASE_OUT}/${FILENAME}_txt"
+CORR_DIR="${BASE_OUT}/${FILENAME}_txt_corrige"
+FINAL_PDF="${BASE_OUT}/${FILENAME}_final_corrige.pdf"
 
-# 1) PDF → TIFF @300 dpi
+mkdir -p "$IMAGES_DIR" "$SCANNED_DIR" "$TXT_DIR" "$CORR_DIR"
+
+# Étape 1 : PDF → TIFF
 echo "📄 Étape 1 : PDF → TIFF"
-pdftoppm -r 300 "$IN_PDF" "$IMGDIR/page" -tiff
+pdftoppm -r 300 "$PDF_FILE" "$IMAGES_DIR/page" -tiff
 
-# 2) ScanTailor (deskew, layout, despeckle, columbus…)
+# Étape 2 : ScanTailor
 echo "🔧 Étape 2 : ScanTailor"
-scantailor-cli \
-  --layout=1 --content-detection=normal --deskew=auto \
-  --output-dpi=300 --despeckle=strong \
-  -c textord_no_rejects=1 \
-  "$IMGDIR" "$SCANDIR"
+scantailor-cli --layout=1 --content-detection=normal --deskew=auto --output-dpi=300 --despeckle=strong \
+  -c textord_no_rejects=1 "$IMAGES_DIR" "$SCANNED_DIR"
 
-# 2c) Reconstruction d’un PDF « nettoyé » mono-colonne
-echo "📄 Étape 2c : Reconstruction PDF mono-colonne"
-img2pdf -o "$CLEANPDF" "$SCANDIR"/*.tif
+## Étape 3 : OCR complet avec OCRmyPDF
+echo "🔠 Étape 3 : OCR et génération PDF searchable avec ocrmypdf"
+CLEANPDF="$BASE_OUT/${FILENAME}_scanned.pdf"
+ocrmypdf --force-ocr --language fra --tesseract-pagesegmode 1 \
+  "$CLEANPDF" "$FINAL_PDF"
 
-# 3) OCR avec OCRmyPDF + Tesseract en mode Auto+OSD (PSM 1)
-echo "🔠 Étape 3 : OCR et génération PDF searchable"
-ocrmypdf \
-  --force-ocr \
-  --language fra \
-  --tesseract-pagesegmode 1 \
-  --tesseract-config "--psm 1" \
-  "$CLEANPDF" "$OCRPDF"
-
-# 4) Extraction texte brut pour post-traitement
+## Étape 4 : Extraction du texte corrigé
 echo "📂 Étape 4 : Extraction du texte pour LanguageTool"
-TXT="$BASE/${FNAME}.txt"
-pdftotext -layout "$OCRPDF" "$TXT"
+pdftotext -layout "$FINAL_PDF" "$TXT_DIR/${FILENAME}.txt"
 
 ## Étape 4b : Nettoyage post-OCR
 echo "🧹 Étape 4b : Nettoyage post-OCR"
@@ -67,15 +73,28 @@ python3 "$(dirname "$0")/structure_juridique.py" \
    "$CORR_DIR/${FILENAME}.txt" \
    "$ROOT_DIR/traitement_lot/output/${FILENAME}.json"
 
-  > candidats_lexique.txt
+## Étape 8 : Extraction et mise à jour du dictionnaire métier
+DICT_FILE="/app/dico_juridique.txt"
+echo "🏷️ Étape 8 : Extraction des candidats lexique et mise à jour du dictionnaire → $DICT_FILE"
+# On prépare le fichier
+mkdir -p "$(dirname "$DICT_FILE")"
+touch "$DICT_FILE"
 
-## Étape 8 : Copie du texte corrigé
-echo "📋 Étape 8 : Copie du texte corrigé dans output/"
+# Extraction des termes en MAJ (ou capitalisés en début de mot),
+# on ne garde que ceux >3 caractères et apparus >1 fois
+grep -hoE '\b[[:upper:]][[:alpha:]]+(?:\s+[[:upper:]][[:alpha:]]+)*\b' \
+  "$CORR_DIR/${FILENAME}.txt" \
+  | sort | uniq -c \
+  | awk '$1>1 && length($2)>3 { print $2 }' \
+  >> "$DICT_FILE"
+
+# Dé-duplication & tri du dictionnaire
+sort -u "$DICT_FILE" -o "$DICT_FILE"
+
+echo "✅ Dictionnaire métier mis à jour : $(wc -l < "$DICT_FILE") termes"
+
+## Étape 9 : Copie du texte corrigé
+echo "📋 Étape 9 : Copie du texte corrigé dans output/"
 cp "$CORR_DIR/${FILENAME}.txt" \
    "$ROOT_DIR/traitement_lot/output/${FILENAME}.txt"
 
-# Exemple : extraire les suites de mots en majuscules ou capitalisés
-grep -hoE '\b[A-Z][A-Za-zéèêçàâûùîï]+(\s+[A-Z][A-Za-zéèêçàâûùîï]+)*\b' \
-  pipeline_OCR/traitement_lot/output/*/*_txt_corrige/*.txt \
-  | sort | uniq -c | sort -nr \
-  | head -n 200 \
