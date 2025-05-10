@@ -72,17 +72,26 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# 1. Runtime minimal : libs image, PDF, Python, Java, OCRmyPDF dépendances
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    libgomp1 \
-    libleptonica-dev libtiff5 libpng16-16 libjpeg8 zlib1g \
-    poppler-utils ghostscript qpdf \
-    python3 python3-pip default-jre \
-    libqtcore4 libqtgui4 libqt4-network libxrender1 libx11-6 libxext6 libgl1-mesa-glx \
-    libboost-system1.65.1 libboost-filesystem1.65.1 \
-&& update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
-&& rm -rf /var/lib/apt/lists/*
+## Avant tout, activer universe en forçant IPv4
+RUN apt-get -o Acquire::ForceIPv4=true update && \
+    apt-get -o Acquire::ForceIPv4=true install -y --no-install-recommends \
+      apt-transport-https ca-certificates software-properties-common && \
+    sed -i 's|http://archive.ubuntu.com/|https://archive.ubuntu.com/|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.ubuntu.com/|https://security.ubuntu.com/|g' /etc/apt/sources.list && \
+    add-apt-repository universe && \
+    rm -rf /var/lib/apt/lists/*
+
+## Installer tous les libs restants, toujours en IPv4
+RUN apt-get -o Acquire::ForceIPv4=true update && \
+    apt-get -o Acquire::ForceIPv4=true install -y --no-install-recommends \
+      libgomp1 \
+      libleptonica5 libtiff5 libpng16-16 libjpeg8 zlib1g \
+      poppler-utils ghostscript qpdf \
+      python3 python3-pip default-jre \
+      libqtcore4 libqtgui4 libqt4-network libxrender1 libx11-6 libxext6 libgl1-mesa-glx \
+    && pip3 install --no-cache-dir img2pdf \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # installer et générer le locale français
 RUN apt-get update \
@@ -100,7 +109,9 @@ COPY --from=builder /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-lin
 # Mettre à jour le cache de ld
 RUN ldconfig
 COPY --from=builder /usr/share/tessdata /usr/share/tessdata
-
+# Copier aussi les libs Boost nécessaires (runtime)
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libboost_system.so.1.65.1 /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.65.1 /usr/lib/x86_64-linux-gnu/
 # 3. Copier les modules Python et OCRmyPDF
 COPY --from=builder /usr/local/lib/python3.6/dist-packages /usr/local/lib/python3.6/dist-packages
 
