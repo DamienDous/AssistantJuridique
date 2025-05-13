@@ -58,7 +58,8 @@ Un système de **sécurité a été mis en place dans le `Makefile`** pour bloqu
 ### Pour lancer le traitement d’un fichier unique :
 
 ```bash
-make build            # ⚠️ à faire après toute modif sous Windows uniquement
+make build PLATFORM=linux/amd64      # Sur processeur Intel (Linux/Windows)
+make build PLATFORM=linux/arm64      # Sur Mac M1/M2/M3/M4
 make run FILE=nom_du_fichier.pdf
 ```
 
@@ -168,7 +169,8 @@ tonrepo/
 ## ✅ Exemple complet
 
 ```bash
-make build              # (Sous Windows seulement)
+make build PLATFORM=linux/amd64      # Sur processeur Intel (Linux/Windows)
+make build PLATFORM=linux/arm64      # Sur Mac M1/M2/M3/M4
 make run FILE=20200227_CIVIL_conclusions_MAE_page_10.pdf
 make run-all
 python3 pipeline_OCR/evaluation/evaluate_pipeline_from_pdf.py

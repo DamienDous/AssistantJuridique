@@ -1,39 +1,44 @@
 # ------------------------
 # Étape 1 : builder
 # ------------------------
-FROM ubuntu:18.04 AS builder
+FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    TESSDATA_PREFIX=/usr/share/tessdata \
-    CC=gcc-9 \
-    CXX=g++-9
+    TESSDATA_PREFIX=/usr/share/tessdata
 
-# 1. Installer les dépendances de build
 RUN apt-get update && \
-apt-get install -y --no-install-recommends \
-    software-properties-common \
-&& add-apt-repository ppa:ubuntu-toolchain-r/test -y \
-&& apt-get update && \
-apt-get install -y --no-install-recommends \
-    git build-essential pkg-config \
-    gcc-9 g++-9 \
-    autoconf automake libtool cmake \
-    libleptonica-dev libtiff-dev libpng-dev libjpeg-dev zlib1g-dev \
-    poppler-utils python3 python3-pip default-jre \
-    qt4-qmake libqt4-dev libxrender-dev libx11-dev libxext-dev libgl1-mesa-dev \
-    libboost-all-dev \
-    && update-alternatives --install /usr/bin/gcc  gcc  /usr/bin/gcc-9 100 \
-    && update-alternatives --install /usr/bin/g++  g++  /usr/bin/g++-9 100 \
-&& rm -rf /var/lib/apt/lists/*
+      apt-get install -y --no-install-recommends \
+      ca-certificates curl git wget \
+      build-essential pkg-config \
+      gcc g++ cmake autoconf automake libtool \
+      qt5-qmake qtbase5-dev qtbase5-dev-tools qttools5-dev qttools5-dev-tools \
+      libqt5svg5-dev libqt5opengl5-dev \
+      libxrender-dev libx11-dev libxext-dev libgl1-mesa-dev \
+      libboost-all-dev \
+      libleptonica-dev libcurl4-openssl-dev libjpeg-dev \
+      libpng-dev libtiff-dev \
+      python3 python3-pip python3-setuptools python3-wheel \
+      poppler-utils default-jre \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Compiler ScanTailor CLI
-RUN git clone https://github.com/scantailor/scantailor.git /opt/scantailor && \
+# 2. Compiler ScanTailor CLI (avec détection Qt dynamique)
+RUN git clone https://github.com/4lex4/scantailor-advanced.git /opt/scantailor && \
     cd /opt/scantailor && \
-    sed -i 's/cmake_minimum_required(VERSION 2.6)/cmake_minimum_required(VERSION 3.5)/' CMakeLists.txt && \
-    mkdir build && cd build && cmake .. -DQT_QMAKE_EXECUTABLE=/usr/bin/qmake && \
+    mkdir build && cd build && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then \
+        LIBARCH="aarch64-linux-gnu"; \
+    else \
+        LIBARCH="x86_64-linux-gnu"; \
+    fi && \
+    echo "Using Qt5 path: /usr/lib/$LIBARCH/cmake/Qt5" && \
+    cmake .. \
+        -DCMAKE_PREFIX_PATH="/usr/lib/qt5;/usr/lib/$LIBARCH/cmake/Qt5" \
+        -DQT_QMAKE_EXECUTABLE=/usr/lib/qt5/bin/qmake \
+        -DQt5LinguistTools_DIR=/usr/lib/$LIBARCH/cmake/Qt5LinguistTools \
+        -DCMAKE_INSTALL_PREFIX=/opt/scantailor/install && \
     make -j"$(nproc)" && \
-    cp scantailor-cli /usr/local/bin/ && \
-    rm -rf /opt/scantailor
+    make install
 
 # 3. Compiler et installer Tesseract 5
 RUN git clone --depth 1 https://github.com/tesseract-ocr/tesseract.git /opt/tesseract && \
@@ -47,12 +52,12 @@ RUN git clone --depth 1 https://github.com/tesseract-ocr/tesseract.git /opt/tess
     cp -r tessdata/configs/* $TESSDATA_PREFIX/configs/ && \
     rm -rf /opt/tesseract
 
-# 4. Récupérer uniquement les données linguistiques
+# 4. Récupérer les données linguistiques Tesseract
 RUN git clone --depth 1 https://github.com/tesseract-ocr/tessdata.git /tmp/tessdata && \
     cp /tmp/tessdata/*.traineddata $TESSDATA_PREFIX/ && \
     rm -rf /tmp/tessdata
 
-# 5. Installer les librairies Python + OCRmyPDF
+# 5. Installer les paquets Python + OCRmyPDF
 WORKDIR /app
 COPY requirements.txt /app/
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
@@ -65,65 +70,55 @@ COPY . /app
 # ------------------------
 # Étape 2 : runtime
 # ------------------------
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TESSDATA_PREFIX=/usr/share/tessdata \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-## Avant tout, activer universe en forçant IPv4
-RUN apt-get -o Acquire::ForceIPv4=true update && \
-    apt-get -o Acquire::ForceIPv4=true install -y --no-install-recommends \
-      apt-transport-https ca-certificates software-properties-common && \
-    sed -i 's|http://archive.ubuntu.com/|https://archive.ubuntu.com/|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com/|https://security.ubuntu.com/|g' /etc/apt/sources.list && \
-    add-apt-repository universe && \
-    rm -rf /var/lib/apt/lists/*
-
-## Installer tous les libs restants, toujours en IPv4
-RUN apt-get -o Acquire::ForceIPv4=true update && \
-    apt-get -o Acquire::ForceIPv4=true install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
       libgomp1 \
-      libleptonica5 libtiff5 libpng16-16 libjpeg8 zlib1g \
+      libleptonica-dev libtiff5 libpng16-16 libjpeg8 zlib1g \
       poppler-utils ghostscript qpdf \
       python3 python3-pip default-jre \
-      libqtcore4 libqtgui4 libqt4-network libxrender1 libx11-6 libxext6 libgl1-mesa-glx \
-    && pip3 install --no-cache-dir img2pdf \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
-    && rm -rf /var/lib/apt/lists/*
+      libqt5core5a libqt5gui5 libqt5network5 \
+      libxrender1 libx11-6 libxext6 libgl1-mesa-glx \
+      libxml2-dev libxslt1-dev && \
+    pip3 install --no-cache-dir img2pdf && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
+    rm -rf /var/lib/apt/lists/*
 
-# installer et générer le locale français
-RUN apt-get update \
- && apt-get install -y --no-install-recommends locales \
- && locale-gen fr_FR.UTF-8 \
- && update-locale LANG=fr_FR.UTF-8 LC_ALL=fr_FR.UTF-8
- 
-# 2. Copier les binaires compilés et données
+# Installer les locales
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends locales && \
+    locale-gen fr_FR.UTF-8 && \
+    update-locale LANG=fr_FR.UTF-8 LC_ALL=fr_FR.UTF-8
+
+# 2. Copier les binaires compilés
 COPY --from=builder /usr/local/bin/tesseract /usr/local/bin/
-COPY --from=builder /usr/local/bin/scantailor-cli /usr/local/bin/
-# Copier les libs Tesseract (construites dans le builder) vers le runtime
+COPY --from=builder /opt/scantailor/install/bin/scantailor /usr/local/bin/scantailor
 COPY --from=builder /usr/local/lib/libtesseract.so.5* /usr/local/lib/
-# copier la libstdc++ du builder (GCC-9)
-COPY --from=builder /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
-# Mettre à jour le cache de ld
-RUN ldconfig
 COPY --from=builder /usr/share/tessdata /usr/share/tessdata
-# Copier aussi les libs Boost nécessaires (runtime)
-COPY --from=builder /usr/lib/x86_64-linux-gnu/libboost_system.so.1.65.1 /usr/lib/x86_64-linux-gnu/
-COPY --from=builder /usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.65.1 /usr/lib/x86_64-linux-gnu/
-# 3. Copier les modules Python et OCRmyPDF
-COPY --from=builder /usr/local/lib/python3.6/dist-packages /usr/local/lib/python3.6/dist-packages
-
-# copier les scripts CLI installés par pip dans builder
+# Copier uniquement les bibliothèques de l'architecture active (aarch64 ou x86_64)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        cp -u /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/ || true && \
+        cp -u /usr/lib/x86_64-linux-gnu/libboost_system.so.1.74.0 /usr/lib/x86_64-linux-gnu/ || true && \
+        cp -u /usr/lib/x86_64-linux-gnu/libboost_filesystem.so.1.74.0 /usr/lib/x86_64-linux-gnu/ || true ; \
+    else \
+        cp -u /usr/lib/aarch64-linux-gnu/libstdc++.so.6 /usr/lib/aarch64-linux-gnu/ || true && \
+        cp -u /usr/lib/aarch64-linux-gnu/libboost_system.so.1.74.0 /usr/lib/aarch64-linux-gnu/ || true && \
+        cp -u /usr/lib/aarch64-linux-gnu/libboost_filesystem.so.1.74.0 /usr/lib/aarch64-linux-gnu/ || true ; \
+    fi
+COPY --from=builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages
 COPY --from=builder /usr/local/bin/ocrmypdf /usr/local/bin/
 COPY dico_juridique.txt /app/dico_juridique.txt
-# Copier votre script de structuration
 COPY pipeline_OCR/pipelines/pipeline_base/structure_juridique.py /app/pipeline_OCR/pipelines/pipeline_base/structure_juridique.py
 
-# 4. Copier ton code APP
 WORKDIR /app
 COPY --from=builder /app /app
 
-# 5. Entrypoint
 CMD ["/bin/bash"]

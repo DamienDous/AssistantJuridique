@@ -1,3 +1,4 @@
+PLATFORM ?= linux/arm64
 IMAGE_NAME = pipeline-ocr
 INPUT_DIR = pipeline_OCR/traitement_lot/input_pdf
 OUTPUT_DIR = pipeline_OCR/traitement_lot/output
@@ -11,8 +12,16 @@ endif
 
 .PHONY: build
 build:
-	MSYS_NO_PATHCONV=1 docker build -t $(IMAGE_NAME) .
+	MSYS_NO_PATHCONV=1 docker build --platform=$(PLATFORM) -t $(IMAGE_NAME) .
 
+.PHONY: build-arm build-amd
+
+build-arm:
+	MSYS_NO_PATHCONV=1 docker buildx build --platform linux/arm64 -t $(IMAGE_NAME) .
+
+build-amd:
+	MSYS_NO_PATHCONV=1 docker buildx build --platform linux/amd64 -t $(IMAGE_NAME) .
+	
 run:
 ifndef FILE
 	$(error ❌ Veuillez spécifier un nom de fichier PDF avec FILE=nom.pdf)
