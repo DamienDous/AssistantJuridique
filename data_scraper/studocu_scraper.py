@@ -23,6 +23,9 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 from PIL import Image
 from io import BytesIO
+import cv2
+import numpy as np
+from glob import glob
 
 # Journal de scraping CSV
 log_entries = []
@@ -276,6 +279,7 @@ def capture_vue_premiere_page(driver, dossier="captures_debug"):
 		reader = csv.DictReader(f, delimiter=";")
 		next(reader)
 		next(reader)
+		next(reader)
 		premiere = next(reader)
 		url = premiere["url"]
 		titre_brut = premiere["titre"]
@@ -307,13 +311,15 @@ def capture_vue_premiere_page(driver, dossier="captures_debug"):
 		scroll_height = driver.execute_script("return arguments[0].scrollHeight", scrollable)
 		client_height = driver.execute_script("return arguments[0].clientHeight", scrollable)
 
-		nb_scrolls = max(1, scroll_height // client_height)
+		nb_scrolls = max(1, 2 * scroll_height // client_height)  # double de captures
 		print(f"📏 scrollHeight = {scroll_height}, clientHeight = {client_height}")
 		print(f"📸 Nombre de scrolls estimé : {nb_scrolls}")
 
 		for i in range(nb_scrolls):
-			driver.execute_script("arguments[0].scrollTop = arguments[0].clientHeight * arguments[1];",
-								  scrollable, i)
+			driver.execute_script(
+				"arguments[0].scrollTop = (arguments[0].clientHeight / 2) * arguments[1];",
+				scrollable, i
+			)
 			time.sleep(1.2)
 			image = Image.open(BytesIO(driver.get_screenshot_as_png()))
 			image_path = os.path.join(dossier, f"{titre}_vue{i+1}.png")
@@ -323,16 +329,158 @@ def capture_vue_premiere_page(driver, dossier="captures_debug"):
 		print(f"❌ Scroll ou capture échouée : {e}")
 
 
+# === Traitement post-capture : Découpe + Alignement + Fusion ===
+def natural_sort_key(s):
+	return [int(text) if text.isdigit() else text.lower()
+			for text in re.split(r'(\d+)', s)]
+
+def decouper_image_zone_utilisable(image: np.ndarray) -> np.ndarray:
+	x1, y1 = 1380, 555
+	x2, y2 = 2620, 1800
+	return image[y1:y2, x1:x2]
+
+def calculer_transformation(img_ref, img_cible):
+	orb = cv2.ORB_create(5000)
+	kp1, des1 = orb.detectAndCompute(img_ref, None)
+	kp2, des2 = orb.detectAndCompute(img_cible, None)
+	if des1 is None or des2 is None:
+		return np.float32([[1, 0, 0], [0, 1, 0]])
+	matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+	matches = matcher.match(des1, des2)
+	matches = sorted(matches, key=lambda x: x.distance)[:50]
+	if len(matches) < 4:
+		return np.float32([[1, 0, 0], [0, 1, 0]])
+	pts1 = np.float32([kp1[m.queryIdx].pt for m in matches])
+	pts2 = np.float32([kp2[m.trainIdx].pt for m in matches])
+	M, _ = cv2.estimateAffinePartial2D(pts2, pts1)
+	return M if M is not None else np.float32([[1, 0, 0], [0, 1, 0]])
+
+def fusionner_par_confiance(base, alignee, seuil=10):
+	mask_base = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)
+	mask_alignee = cv2.cvtColor(alignee, cv2.COLOR_BGR2GRAY)
+	mask_diff = (np.abs(mask_alignee.astype(int) - mask_base.astype(int)) > seuil).astype(np.uint8) * 255
+	fusion = base.copy()
+	fusion[mask_diff == 255] = alignee[mask_diff == 255]
+	return fusion
+import cv2
+import numpy as np
+
+def detect_overlay_zone(img: np.ndarray) -> bool:
+    """Détecte la présence d’une barre sombre avec bouton vert et texte blanc."""
+    if img.shape[0] < 60:
+        return False
+    h, w = img.shape[:2]
+    bande = img[h//2:h//2 + 60]  # zone centrale
+
+    mask_dark = cv2.inRange(bande, (30, 30, 30), (70, 70, 70))       # fond sombre
+    mask_white = cv2.inRange(bande, (180, 180, 180), (255, 255, 255))  # texte blanc
+    mask_green = cv2.inRange(bande, (0, 140, 14), (80, 255, 94))       # vert fluo
+
+    total = mask_dark.size
+    ratio_dark = np.count_nonzero(mask_dark) / total
+    ratio_white = np.count_nonzero(mask_white) / total
+    ratio_green = np.count_nonzero(mask_green) / total
+
+    if ratio_dark > 0.25 and ratio_white > 0.01 and ratio_green > 0.01:
+        print("🧠 Overlay détecté (fond sombre + texte + bouton vert)")
+        return True
+    return False
+
+
+def zone_difference(img1, img2, max_offset=300, template_path="popup.png"):
+    h = min(img1.shape[0], img2.shape[0])
+    min_score = float("inf")
+    best_y = 0
+
+    # 1. Calcul du meilleur chevauchement
+    for y in range(20, max_offset):
+        patch1 = img1[-y:]
+        patch2 = img2[:y]
+        if patch1.shape[0] != patch2.shape[0]:
+            continue
+        diff = np.abs(patch1.astype(np.int16) - patch2.astype(np.int16))
+        score = np.mean(diff)
+        if score < min_score:
+            min_score = score
+            best_y = y
+
+    # 2. Chargement du template pop-up
+    try:
+        template = cv2.imread(template_path)
+        if template is not None:
+            h_t, w_t = template.shape[:2]
+
+            # Match dans toute l'image
+            result = cv2.matchTemplate(img2, template, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+            print(f"🎯 MatchTemplate score : {max_val:.3f}")
+
+            # Si le match est fort (> 0.8), on coupe la pop-up
+            if max_val > 0.8:
+                popup_y = max_loc[1]
+                print(f"⚠️ Barre flottante détectée à y={popup_y}. Contournement.")
+                best_y = max(best_y, popup_y + h_t)  # on coupe en dessous
+    except Exception as e:
+        print(f"❌ Erreur chargement ou matching template : {e}")
+
+    return best_y
+
+
+def assembler_document(dossier="captures_debug", sortie="document_fusionne_final.png"):
+    chemins = sorted(glob(os.path.join(dossier, "*_vue*.png")), key=natural_sort_key)
+    images = [cv2.imread(p) for p in chemins]
+    images_utiles = []
+
+    for i, img in enumerate(images):
+        decoupee = decouper_image_zone_utilisable(img)
+        images_utiles.append(decoupee)
+        debug_path = os.path.join(dossier, f"decoupe_debug_{i+1:02d}.png")
+        cv2.imwrite(debug_path, decoupee)
+        print(f"🧪 Image découpée enregistrée : {debug_path} ({decoupee.shape[1]}x{decoupee.shape[0]})")
+
+    h_img, w_img = images_utiles[0].shape[:2]
+    segments = [images_utiles[0]]
+
+    for i in range(1, len(images_utiles)):
+        y_cut = zone_difference(
+            segments[-1],
+            images_utiles[i],
+            max_offset=h_img // 2,
+            template_path=os.path.join(dossier, "popup.png")
+        )
+        print(f"🔎 Image {i+1}: découpage dynamique à y = {y_cut}")
+        segments.append(images_utiles[i][y_cut:])
+
+    h_total = sum(seg.shape[0] for seg in segments)
+    canvas = np.zeros((h_total, w_img, 3), dtype=np.uint8)
+
+    y_offset = 0
+    for seg in segments:
+        h = seg.shape[0]
+        canvas[y_offset:y_offset + h, :w_img] = seg
+        y_offset += h
+
+    cv2.imwrite(sortie, canvas)
+    print(f"✅ Document final fusionné enregistré sous : {sortie}")
+
+
+
+
 
 if __name__ == "__main__":
 	# Initialiser le driver
-	driver = init_driver()
-	try:
-		email = "damien.dous@gmail.com"
-		mot_de_passe = "azerty1!"
-		login_studocu(driver, email, mot_de_passe)
-		time.sleep(3)  # ⏳ Attendre que la session soit bien active
-		capture_vue_premiere_page(driver=driver)
-	finally:
-		driver.quit()
-	fusionner_captures_verticales(dossier_captures="captures_debug")
+	# driver = init_driver()
+	# try:
+	# 	email = "damien.dous@gmail.com"
+	# 	mot_de_passe = "azerty1!"
+	# 	login_studocu(driver, email, mot_de_passe)
+	# 	time.sleep(3)  # ⏳ Attendre que la session soit bien active
+	# 	capture_vue_premiere_page(driver=driver)
+	# finally:
+	# 	driver.quit()
+	# fusionner_captures_verticales(dossier="captures_debug")
+
+	assembler_document()
+
+
