@@ -2,3 +2,13 @@ pandas
 jiwer
 python-Levenshtein
 language-tool-python
+selenium
+undetected-chromedriver
+beautifulsoup4
+lxml
+requests
+PyMuPDF
+pillow
+webdriver-manager
+setuptools
+opencv-python

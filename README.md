@@ -35,6 +35,12 @@ Ce projet automatise le traitement de documents PDF scannés :
 
 ## 🚫 Interdiction d'utiliser Git Bash sous Windows
 
+## 🐧 Option : Windows via WSL (Windows Subsystem for Linux)
+
+- ✅ En utilisant **WSL 2**, vous disposez d’un environnement Linux natif sur Windows.
+- ✅ Les commandes `make`, `docker`, `pyenv`, etc. fonctionnent comme sur macOS/Linux.
+- ✅ Activation automatique du venv via `.python-version` si `pyenv` est installé dans WSL.
+
 - L'exécution des scripts avec Git Bash sous Windows **provoque une erreur de montage de volumes (`-v`) dans Docker**.
 - **Seuls PowerShell ou WSL sont compatibles** avec la synchronisation du projet local et le conteneur Docker.
 
