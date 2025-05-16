@@ -1,10 +1,9 @@
-import time
-import os
-import random
-import requests
-import fitz  # PyMuPDF
-import csv
+import csv, os, time
+from glob import glob
 from pathlib import Path
+import numpy as np
+import random
+import cv2
 import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
 from selenium.webdriver.chrome.service import Service
@@ -12,31 +11,34 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 import unicodedata
 import subprocess
 import re
-import sys
-from collections import deque
-from urllib.parse import urlparse, urljoin
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import NoSuchElementException
-from PIL import Image
 from io import BytesIO
-import cv2
-import numpy as np
-from glob import glob
-import csv, os, time
 from PIL import Image
-from io import BytesIO
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
+from urllib.parse import urlparse
+
 
 TEMP_FOLDER = "dossier_temp"
 SCORE_THRESHOLD = 0.4
 SCROLL_OFFSET = 835
 # Journal de scraping CSV
 log_entries = []
+
+def studocu_slug(url):
+    # 1. Extraire le chemin de l'URL
+    path = urlparse(url).path
+    # 2. Supprimer le premier / (toujours présent)
+    path = path.lstrip('/')
+    # 3. Enlever l'ID final (toujours numérique, avant éventuel "?")
+    parts = path.split('/')
+    # On enlève le dernier élément s'il ne contient que des chiffres
+    if parts and parts[-1].isdigit():
+        parts = parts[:-1]
+    # 4. Joindre tous les morceaux avec un tiret
+    slug = '-'.join(parts)
+    return slug
 
 def init_driver():
 	options = uc.ChromeOptions()
@@ -64,83 +66,94 @@ def init_driver():
 
 	return driver
 
-def recherche_studocu(driver, mot_cle="cas pratique droit"):
-	print(f"🔍 Test de recherche pour : {mot_cle}")
-	driver.get("https://www.studocu.com/fr/")
+def recherche_studocu(driver, mot_cle):
+    print(f"🔍 Test de recherche pour : {mot_cle}")
+    driver.get("https://www.studocu.com/fr/")
 
-	# 🔧 Attente que la page finisse de “clignoter” (cas du VPN)
-	time.sleep(2.5)
+    time.sleep(2.5)
+    # Cookies
+    try:
+        WebDriverWait(driver, 6).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Tout refuser')]"))
+        ).click()
+        print("✅ Cookies refusés.")
+    except:
+        print("ℹ️ Pas de popup cookies détecté.")
 
-	# 🍪 Gérer le bandeau cookies
-	try:
-		WebDriverWait(driver, 6).until(
-			EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Tout refuser')]"))
-		).click()
-		print("✅ Cookies refusés.")
-	except:
-		print("ℹ️ Pas de popup cookies détecté.")
+    all_liens = set()  # Pour éviter les doublons
 
-	try:
-		# 🧠 Attendre que le champ soit cliquable
-		champ = WebDriverWait(driver, 10).until(
-			EC.element_to_be_clickable((By.CSS_SELECTOR, "input[placeholder*='Rechercher']"))
-		)
-		for tentative in range(2):  # on essaie une fois, puis on vérifie
-			champ.click()
-			time.sleep(0.5)
-			champ.clear()
-			champ.send_keys(mot_cle)
-			time.sleep(0.5)
-			if champ.get_attribute("value").strip():
-				break
-			print("⏳ Le mot-clé n’a pas été inséré, nouvelle tentative…")
-		
-		champ.submit()
-		print("✅ Requête envoyée.")
+    try:
+        # Recherche du champ
+        champ = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[placeholder*='Rechercher']"))
+        )
+        for tentative in range(2):
+            champ.click()
+            time.sleep(0.5)
+            champ.clear()
+            champ.send_keys(mot_cle)
+            time.sleep(0.5)
+            if champ.get_attribute("value").strip():
+                break
+            print("⏳ Le mot-clé n’a pas été inséré, nouvelle tentative…")
+        
+        champ.submit()
+        print("✅ Requête envoyée.")
 
-		# Attendre les résultats
-		WebDriverWait(driver, 10).until(
-			EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a"))
-		)
+        time.sleep(2)
+        page_num = 1
+        while True:
+            # Attendre chargement des liens
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a[href*="/fr/document/"]'))
+            )
 
-		time.sleep(2)  # laisse le temps au JS de charger les liens
+            # Récupérer les liens de la page courante
+            liens = driver.find_elements(By.CSS_SELECTOR, 'a[href*="/fr/document/"]')
+            nb_avant = len(all_liens)
+            for l in liens:
+                href = l.get_attribute("href")
+                if href and "/fr/document/" in href:
+                    all_liens.add(href)
+            print(f"🟢 Page {page_num} : {len(all_liens) - nb_avant} nouveaux liens")
 
-		liens = driver.find_elements(By.CSS_SELECTOR, "a")
-		liens_valides = [l.get_attribute("href") for l in liens if l.get_attribute("href") and "/fr/document/" in l.get_attribute("href")]
+            # Chercher bouton "Suivant"
+            try:
+                next_btn = driver.find_element(By.CSS_SELECTOR, 'button[data-test-selector="search-document-pagination-next-button"]')
+                if next_btn.get_attribute("disabled"):
+                    print("⏹️ Plus de pages suivantes.")
+                    break  # Bouton désactivé : fin des pages
+                next_btn.click()
+                page_num += 1
+                time.sleep(2.2)  # Attendre chargement nouvelle page
+            except Exception as e:
+                print("⏹️ Bouton 'Suivant' introuvable ou erreur :", e)
+                break
 
-		print(f"🟢 {len(liens_valides)} liens potentiels trouvés :")
-		for lien in liens_valides[:5]:
-			print(" ➜", lien)
+        print(f"🟢 Total {len(all_liens)} liens récupérés pour la recherche '{mot_cle}'")
+        for lien in list(all_liens)[:5]:
+            print(" ➜", lien)
 
-		return liens_valides
+        return list(all_liens)
 
-	except Exception as e:
-		print("❌ Erreur pendant la recherche :", e)
-		return []
+    except Exception as e:
+        print("❌ Erreur pendant la recherche :", e)
+        return []
 
 def recherche_multi_studocu(driver, requetes, csv_output):
 	liens_total = []
 	for requete in requetes:
 		liens = recherche_studocu(driver, requete)
-		for url in liens[:2]:  # ⛔ Limitation à 2 liens max par mot-clé
-			try:
-				driver.get(url)
-				WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "title")))
-				soup = BeautifulSoup(driver.page_source, "html.parser")
-				titre = soup.title.text.strip() if soup.title else ""
-			except Exception as e:
-				print(f"⚠️ Impossible de récupérer le titre pour {url} : {e}")
-				titre = ""
+		for url in liens:  # ⛔ Limitation à 2 liens max par mot-clé
 			liens_total.append({
 				"requete": requete,
-				"url": url,
-				"titre": titre
+				"url": url
 			})
 			
 		time.sleep(random.uniform(2, 4))  # petite pause entre les requêtes
 
 	with open(csv_output, "w", encoding="utf-8-sig", newline='') as f:
-		writer = csv.DictWriter(f, fieldnames=["requete", "url", "titre"], delimiter=";")
+		writer = csv.DictWriter(f, fieldnames=["requete", "url"], delimiter=";")
 		writer.writeheader()
 		writer.writerows(liens_total)
 
@@ -401,7 +414,7 @@ def assembler_document(dossier, sortie):
 		y_cut = zone_difference(
 			images_utiles[i],
 			images_utiles[i+1],
-			template_path=os.path.join(TEMP_FOLDER, "popup.png"),
+			template_path=os.path.join(os.getcwd(), "popup.png"),
 			max_offset=images_utiles[i].shape[0] // 2
 		)
 		y_cuts.append(y_cut)
@@ -409,7 +422,7 @@ def assembler_document(dossier, sortie):
 	# 4. Supprime les popups si besoin :
 	#    Pour chaque image (sauf la dernière), détecte un éventuel popup et le remplace
 	#    par un patch pris à la même position dans l'image suivante, en tenant compte du scroll (y_cut)
-	remplacer_popup_par_patch_suivant(images_utiles, y_cuts, template_path=os.path.join(TEMP_FOLDER, "popup.png"), debug_dir="debug_patches")
+	remplacer_popup_par_patch_suivant(images_utiles, y_cuts, template_path=os.path.join(os.getcwd(), "popup.png"), debug_dir="debug_patches")
 
 	# 5. Reconstruit le document fusionné :
 	#    Assemble les images en "coupant" les zones de recouvrement déjà utilisées,
@@ -445,16 +458,19 @@ if __name__ == "__main__":
 		login_studocu(driver, email, mot_de_passe)
 		time.sleep(3)  # ⏳ Attendre que la session soit bien active
 		
-		os.makedirs(TEMP_FOLDER, exist_ok=True)
+		# os.makedirs(TEMP_FOLDER, exist_ok=True)
+		# csv_output = "studocu_liens.csv"
+		# requetes=["cas pratique droit", "exercice pratique droit"]
+		# recherche_multi_studocu(driver, requetes, csv_output)
 
 		with open("studocu_liens.csv", encoding="utf-8-sig") as f:
 			reader = csv.DictReader(f, delimiter=";")
 			for ligne in reader:
 				print(ligne["url"])
 				url = ligne["url"]
-				titre_brut = ligne["titre"]
-				titre = titre_brut.replace(" ", "_").replace("/", "_").replace(":", "_").replace("?", "").replace("\"", "").strip()
-				titre = titre[:30]  # limite pour éviter des noms trop longs
+				titre_brut = ligne["url"]
+				# titre = titre_brut.replace(" ", "_").replace("/", "_").replace(":", "_").replace("?", "").replace("\"", "").strip()
+				titre = studocu_slug(titre_brut)  # limite pour éviter des noms trop longs
 				dossier_temp = TEMP_FOLDER+"/"+titre+"_captures_debug"
 				os.makedirs(dossier_temp, exist_ok=True)
 
