@@ -294,7 +294,7 @@ def natural_sort_key(s):
 
 def decouper_image_zone_utilisable(image: np.ndarray) -> np.ndarray:
 	# Zone utile : ajuste selon tes besoins
-	x1, y1 = 1380, 555
+	x1, y1 = 1380, 200
 	x2, y2 = 2620, 1800
 	return image[y1:y2, x1:x2]
 
