@@ -26,7 +26,15 @@ from io import BytesIO
 import cv2
 import numpy as np
 from glob import glob
+import csv, os, time
+from PIL import Image
+from io import BytesIO
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
+TEMP_FOLDER = "dossier_temp"
+SCORE_THRESHOLD = 0.4
+SCROLL_OFFSET = 835
 # Journal de scraping CSV
 log_entries = []
 
@@ -110,7 +118,7 @@ def recherche_studocu(driver, mot_cle="cas pratique droit"):
 		print("❌ Erreur pendant la recherche :", e)
 		return []
 
-def recherche_multi_studocu(driver, requetes, csv_output="studocu_liens.csv"):
+def recherche_multi_studocu(driver, requetes, csv_output):
 	liens_total = []
 	for requete in requetes:
 		liens = recherche_studocu(driver, requete)
@@ -151,7 +159,7 @@ def nettoyer_texte(html):
 			propre.append(" ".join(ligne.split()))
 	return "\n".join(propre)
 
-def scrape_contenu_premium_depuis_csv(driver, csv_path="studocu_liens.csv", dossier_sortie="studocu_txt"):
+def scrape_contenu_premium_depuis_csv(driver, csv_path, dossier_sortie):
 	if not os.path.exists(dossier_sortie):
 		os.makedirs(dossier_sortie)
 
@@ -236,64 +244,14 @@ def login_studocu(driver, email, mot_de_passe):
 
 	except Exception as e:
 		print(f"❌ Échec de la connexion : {e}")
-
-def fusionner_captures_verticales(dossier, nom_sortie="document_complet.png"):
-	from PIL import Image
-
-	def numero_vue(fichier):
-		match = re.search(r"_vue(\d+)\.png$", fichier)
-		return int(match.group(1)) if match else float("inf")
-
-	images = sorted(
-		[f for f in os.listdir(dossier) if f.endswith(".png") and "_vue" in f],
-		key=numero_vue
-	)
-
-	if not images:
-		print("❌ Aucune image à fusionner.")
-		return
-
-	images_pil = [Image.open(os.path.join(dossier, img)) for img in images]
-	largeur = max(img.width for img in images_pil)
-	hauteur_totale = sum(img.height for img in images_pil)
-
-	image_fusionnee = Image.new("RGB", (largeur, hauteur_totale))
-	y_offset = 0
-	for img in images_pil:
-		image_fusionnee.paste(img, (0, y_offset))
-		y_offset += img.height
-
-	image_fusionnee.save(os.path.join(dossier, nom_sortie))
-	print(f"✅ Image fusionnée enregistrée : {os.path.join(dossier, nom_sortie)}")
 	
-def capture_vue_premiere_page(driver, dossier="captures_debug"):
-	import csv, os, time
-	from PIL import Image
-	from io import BytesIO
-	from selenium.webdriver.common.by import By
-	from selenium.webdriver.common.keys import Keys
-
-	os.makedirs(dossier, exist_ok=True)
-
-	with open("studocu_liens.csv", encoding="utf-8-sig") as f:
-		reader = csv.DictReader(f, delimiter=";")
-		next(reader)
-		next(reader)
-		next(reader)
-		premiere = next(reader)
-		url = premiere["url"]
-		titre_brut = premiere["titre"]
-		titre = titre_brut.replace(" ", "_").replace("/", "_").replace(":", "_").replace("?", "").replace("\"", "").strip()
-		titre = titre[:90]  # limite pour éviter des noms trop longs
-
-	print(f"\n🔗 Accès au document premium : {url}")
-	driver.get(url)
+def capture_vue_premiere_page(driver, url, dossier):
 
 	time.sleep(4)
 	url_finale = driver.current_url
 	print(f"📍 URL après chargement : {url_finale}")
 
-	with open(os.path.join(dossier, "debug_page_source.html"), "w", encoding="utf-8") as f:
+	with open(os.path.join(dossier_temp, "debug_page_source.html"), "w", encoding="utf-8") as f:
 		f.write(driver.page_source)
 	print("🧩 HTML sauvegardé pour inspection.")
 
@@ -310,7 +268,8 @@ def capture_vue_premiere_page(driver, dossier="captures_debug"):
 		scrollable = driver.find_element(By.ID, "document-wrapper")
 		scroll_height = driver.execute_script("return arguments[0].scrollHeight", scrollable)
 		client_height = driver.execute_script("return arguments[0].clientHeight", scrollable)
-
+		SCROLL_OFFSET = int(client_height / 2)
+		print(SCROLL_OFFSET)
 		nb_scrolls = max(1, 2 * scroll_height // client_height)  # double de captures
 		print(f"📏 scrollHeight = {scroll_height}, clientHeight = {client_height}")
 		print(f"📸 Nombre de scrolls estimé : {nb_scrolls}")
@@ -322,165 +281,192 @@ def capture_vue_premiere_page(driver, dossier="captures_debug"):
 			)
 			time.sleep(1.2)
 			image = Image.open(BytesIO(driver.get_screenshot_as_png()))
-			image_path = os.path.join(dossier, f"{titre}_vue{i+1}.png")
+			image_path = os.path.join(dossier_temp, f"{titre}_vue{i+1}.png")
 			image.save(image_path)
 			print(f"✅ Capture {i+1}/{nb_scrolls} enregistrée : {image_path}")
 	except Exception as e:
 		print(f"❌ Scroll ou capture échouée : {e}")
 
+	return dossier_temp
 
-# === Traitement post-capture : Découpe + Alignement + Fusion ===
 def natural_sort_key(s):
-	return [int(text) if text.isdigit() else text.lower()
-			for text in re.split(r'(\d+)', s)]
+	return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
 def decouper_image_zone_utilisable(image: np.ndarray) -> np.ndarray:
+	# Zone utile : ajuste selon tes besoins
 	x1, y1 = 1380, 555
 	x2, y2 = 2620, 1800
 	return image[y1:y2, x1:x2]
 
-def calculer_transformation(img_ref, img_cible):
-	orb = cv2.ORB_create(5000)
-	kp1, des1 = orb.detectAndCompute(img_ref, None)
-	kp2, des2 = orb.detectAndCompute(img_cible, None)
-	if des1 is None or des2 is None:
-		return np.float32([[1, 0, 0], [0, 1, 0]])
-	matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-	matches = matcher.match(des1, des2)
-	matches = sorted(matches, key=lambda x: x.distance)[:50]
-	if len(matches) < 4:
-		return np.float32([[1, 0, 0], [0, 1, 0]])
-	pts1 = np.float32([kp1[m.queryIdx].pt for m in matches])
-	pts2 = np.float32([kp2[m.trainIdx].pt for m in matches])
-	M, _ = cv2.estimateAffinePartial2D(pts2, pts1)
-	return M if M is not None else np.float32([[1, 0, 0], [0, 1, 0]])
+def zone_difference(img1, img2, template_path, max_offset=300):
+	h = min(img1.shape[0], img2.shape[0])
+	min_score = float("inf")
+	best_y = 0
 
-def fusionner_par_confiance(base, alignee, seuil=10):
-	mask_base = cv2.cvtColor(base, cv2.COLOR_BGR2GRAY)
-	mask_alignee = cv2.cvtColor(alignee, cv2.COLOR_BGR2GRAY)
-	mask_diff = (np.abs(mask_alignee.astype(int) - mask_base.astype(int)) > seuil).astype(np.uint8) * 255
-	fusion = base.copy()
-	fusion[mask_diff == 255] = alignee[mask_diff == 255]
-	return fusion
-import cv2
-import numpy as np
+	# Recherche classique du meilleur chevauchement
+	for y in range(20, max_offset):
+		patch1 = img1[-y:]
+		patch2 = img2[:y]
+		if patch1.shape[0] != patch2.shape[0]:
+			continue
+		diff = np.abs(patch1.astype(np.int16) - patch2.astype(np.int16))
+		score = np.mean(diff)
+		if score < min_score:
+			min_score = score
+			best_y = y
 
-def detect_overlay_zone(img: np.ndarray) -> bool:
-    """Détecte la présence d’une barre sombre avec bouton vert et texte blanc."""
-    if img.shape[0] < 60:
-        return False
-    h, w = img.shape[:2]
-    bande = img[h//2:h//2 + 60]  # zone centrale
+	print(f"🔍 Meilleur chevauchement initial à y = {best_y} (score={min_score})")
 
-    mask_dark = cv2.inRange(bande, (30, 30, 30), (70, 70, 70))       # fond sombre
-    mask_white = cv2.inRange(bande, (180, 180, 180), (255, 255, 255))  # texte blanc
-    mask_green = cv2.inRange(bande, (0, 140, 14), (80, 255, 94))       # vert fluo
+	return best_y
 
-    total = mask_dark.size
-    ratio_dark = np.count_nonzero(mask_dark) / total
-    ratio_white = np.count_nonzero(mask_white) / total
-    ratio_green = np.count_nonzero(mask_green) / total
+def detect_popup_bbox(res, template_shape, threshold=0.7):
+	ys, xs = np.where(res >= threshold)
+	if len(xs) == 0:
+		return None
+	y_popup = np.max(ys)
+	xs_popup = xs[ys == y_popup]
+	if len(xs_popup) == 0:
+		return None
+	x_min = np.min(xs_popup)
+	h_t, w_t = template_shape
+	# On prend le x_min, le y_popup, et on rajoute la largeur/hauteur du template
+	return (x_min, y_popup, x_min + w_t, y_popup + h_t)
 
-    if ratio_dark > 0.25 and ratio_white > 0.01 and ratio_green > 0.01:
-        print("🧠 Overlay détecté (fond sombre + texte + bouton vert)")
-        return True
-    return False
+def remplacer_popup_par_patch_suivant(images_utiles, y_cuts, template_path, debug_dir):
+	os.makedirs(debug_dir, exist_ok=True)
+	template = cv2.imread(template_path)
+	if template is None:
+		print(f"❌ Template non trouvé : {template_path}")
+		return
 
+	h_t, w_t = template.shape[:2]
+	nb_patched = 0
 
-def zone_difference(img1, img2, max_offset=300, template_path="popup.png"):
-    h = min(img1.shape[0], img2.shape[0])
-    min_score = float("inf")
-    best_y = 0
+	# Parcourir chaque paire d'images
+	for i in range(len(images_utiles) - 1):
+		img = images_utiles[i]
+		img_suiv = images_utiles[i + 1]
+		y_cut = y_cuts[i]
 
-    # 1. Calcul du meilleur chevauchement
-    for y in range(20, max_offset):
-        patch1 = img1[-y:]
-        patch2 = img2[:y]
-        if patch1.shape[0] != patch2.shape[0]:
-            continue
-        diff = np.abs(patch1.astype(np.int16) - patch2.astype(np.int16))
-        score = np.mean(diff)
-        if score < min_score:
-            min_score = score
-            best_y = y
+		# Détection précise des popups
+		res = cv2.matchTemplate(img, template, cv2.TM_CCOEFF_NORMED)
+		threshold = SCORE_THRESHOLD  # Utilise la variable globale (ou passe-la en argument)
+		bbox = detect_popup_bbox(res, template.shape[:2], threshold)
+		# ... détection popup ...
+		if bbox:
+			x1, y1, x2, y2 = bbox
+			print("bbox : ", x1, y1, x2, y2)
+			print("y_cut : ", y_cut)
 
-    # 2. Chargement du template pop-up
-    try:
-        template = cv2.imread(template_path)
-        if template is not None:
-            h_t, w_t = template.shape[:2]
+			y1_suiv = y1 - SCROLL_OFFSET
+			y2_suiv = y2 - SCROLL_OFFSET
 
-            # Match dans toute l'image
-            result = cv2.matchTemplate(img2, template, cv2.TM_CCOEFF_NORMED)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+			print("y1_suiv - y2_suiv: ", y1_suiv, y2_suiv)
+			# Vérifie que ça reste dans les limites
+			if y1_suiv < 0: y1_suiv = 0
+			if y2_suiv > img_suiv.shape[0]: y2_suiv = img_suiv.shape[0]
+			patch_propre = img_suiv[y1_suiv:y2_suiv, x1:x2]
+			if patch_propre.shape == (y2-y1, x2-x1, 3):
+				img[y1:y2, x1:x2] = patch_propre
+				nb_patched += 1
+				cv2.imwrite(f"{debug_dir}/debug_popup_patch_img{i}_{x1}_{y1}.png", patch_propre)
+			else:
+				print(f"Patch incorrect sur img {i+1}: {patch_propre.shape} au lieu de {(y2-y1, x2-x1, 3)}")
 
-            print(f"🎯 MatchTemplate score : {max_val:.3f}")
+	if nb_patched == 0:
+		print("❗ Aucun popup remplacé sur cette série.")
+	else:
+		print(f"✅ {nb_patched} popup(s) précisément remplacé(s).")
 
-            # Si le match est fort (> 0.8), on coupe la pop-up
-            if max_val > 0.8:
-                popup_y = max_loc[1]
-                print(f"⚠️ Barre flottante détectée à y={popup_y}. Contournement.")
-                best_y = max(best_y, popup_y + h_t)  # on coupe en dessous
-    except Exception as e:
-        print(f"❌ Erreur chargement ou matching template : {e}")
+def assembler_document(dossier, sortie):
+	
+	# 1. Recherche tous les fichiers image (_vue*.png) dans le dossier et trie selon l'ordre naturel
+	# Ouvre chaque image (format OpenCV) et stocke dans une liste
+	chemins = sorted(glob(os.path.join(dossier, "*_vue*.png")), key=natural_sort_key)
+	images = [cv2.imread(p) for p in chemins]
+	images_utiles = []
 
-    return best_y
+	# 2. Découpe chaque image pour ne garder que la "zone utile" (zone centrale du document)
+	for i, img in enumerate(images):
+		decoupee = decouper_image_zone_utilisable(img)
+		images_utiles.append(decoupee)
+		debug_path = os.path.join(dossier, f"decoupe_debug_{i+1:02d}.png")
+		cv2.imwrite(debug_path, decoupee)
+		print(f"🧪 Image découpée enregistrée : {debug_path} ({decoupee.shape[1]}x{decoupee.shape[0]})")
 
+	# 3. Pour chaque paire d'images consécutives, calcule la hauteur de chevauchement optimale (y_cut)
+	# Cela permet de savoir à partir de quelle ligne il faut "assembler" l'image suivante
+	y_cuts = []
+	for i in range(len(images_utiles) - 1):
+		y_cut = zone_difference(
+			images_utiles[i],
+			images_utiles[i+1],
+			template_path=os.path.join(TEMP_FOLDER, "popup.png"),
+			max_offset=images_utiles[i].shape[0] // 2
+		)
+		y_cuts.append(y_cut)
 
-def assembler_document(dossier="captures_debug", sortie="document_fusionne_final.png"):
-    chemins = sorted(glob(os.path.join(dossier, "*_vue*.png")), key=natural_sort_key)
-    images = [cv2.imread(p) for p in chemins]
-    images_utiles = []
+	# 4. Supprime les popups si besoin :
+	#    Pour chaque image (sauf la dernière), détecte un éventuel popup et le remplace
+	#    par un patch pris à la même position dans l'image suivante, en tenant compte du scroll (y_cut)
+	remplacer_popup_par_patch_suivant(images_utiles, y_cuts, template_path=os.path.join(TEMP_FOLDER, "popup.png"), debug_dir="debug_patches")
 
-    for i, img in enumerate(images):
-        decoupee = decouper_image_zone_utilisable(img)
-        images_utiles.append(decoupee)
-        debug_path = os.path.join(dossier, f"decoupe_debug_{i+1:02d}.png")
-        cv2.imwrite(debug_path, decoupee)
-        print(f"🧪 Image découpée enregistrée : {debug_path} ({decoupee.shape[1]}x{decoupee.shape[0]})")
+	# 5. Reconstruit le document fusionné :
+	#    Assemble les images en "coupant" les zones de recouvrement déjà utilisées,
+	#    et en les collant à la suite les unes des autres.
+	h_img, w_img = images_utiles[0].shape[:2]
+	segments = [images_utiles[0]]
+	for i in range(1, len(images_utiles)):
+		y_cut = y_cuts[i-1]  # RÉUTILISE la valeur déjà calculée
+		print(f"🔎 Image {i+1}: découpage dynamique à y = {y_cut}")
+		segments.append(images_utiles[i][y_cut:])
 
-    h_img, w_img = images_utiles[0].shape[:2]
-    segments = [images_utiles[0]]
+	# 6. Construit un grand canvas final, colle tous les segments à la suite verticalement
+	h_total = sum(seg.shape[0] for seg in segments)
+	canvas = np.zeros((h_total, w_img, 3), dtype=np.uint8)
 
-    for i in range(1, len(images_utiles)):
-        y_cut = zone_difference(
-            segments[-1],
-            images_utiles[i],
-            max_offset=h_img // 2,
-            template_path=os.path.join(dossier, "popup.png")
-        )
-        print(f"🔎 Image {i+1}: découpage dynamique à y = {y_cut}")
-        segments.append(images_utiles[i][y_cut:])
+	y_offset = 0
+	for seg in segments:
+		h = seg.shape[0]
+		canvas[y_offset:y_offset + h, :w_img] = seg
+		y_offset += h
 
-    h_total = sum(seg.shape[0] for seg in segments)
-    canvas = np.zeros((h_total, w_img, 3), dtype=np.uint8)
-
-    y_offset = 0
-    for seg in segments:
-        h = seg.shape[0]
-        canvas[y_offset:y_offset + h, :w_img] = seg
-        y_offset += h
-
-    cv2.imwrite(sortie, canvas)
-    print(f"✅ Document final fusionné enregistré sous : {sortie}")
-
-
-
+	# 7. Enregistre l'image fusionnée finale
+	cv2.imwrite(sortie, canvas)
+	print(f"✅ Document final fusionné enregistré sous : {sortie}")
 
 
 if __name__ == "__main__":
 	# Initialiser le driver
-	# driver = init_driver()
-	# try:
-	# 	email = "damien.dous@gmail.com"
-	# 	mot_de_passe = "azerty1!"
-	# 	login_studocu(driver, email, mot_de_passe)
-	# 	time.sleep(3)  # ⏳ Attendre que la session soit bien active
-	# 	capture_vue_premiere_page(driver=driver)
-	# finally:
-	# 	driver.quit()
+	driver = init_driver()
+	try:
+		email = "damien.dous@gmail.com"
+		mot_de_passe = "azerty1!"
+		login_studocu(driver, email, mot_de_passe)
+		time.sleep(3)  # ⏳ Attendre que la session soit bien active
+		
+		os.makedirs(TEMP_FOLDER, exist_ok=True)
+
+		with open("studocu_liens.csv", encoding="utf-8-sig") as f:
+			reader = csv.DictReader(f, delimiter=";")
+			for ligne in reader:
+				print(ligne["url"])
+				url = ligne["url"]
+				titre_brut = ligne["titre"]
+				titre = titre_brut.replace(" ", "_").replace("/", "_").replace(":", "_").replace("?", "").replace("\"", "").strip()
+				titre = titre[:30]  # limite pour éviter des noms trop longs
+				dossier_temp = TEMP_FOLDER+"/"+titre+"_captures_debug"
+				os.makedirs(dossier_temp, exist_ok=True)
+
+				print(f"\n🔗 Accès au document premium : {url}")
+				driver.get(url)
+
+				capture_vue_premiere_page(driver=driver, url=url, dossier=dossier_temp)
+				assembler_document(dossier=dossier_temp, sortie=dossier_temp+"_document_fusionne_final.png")
+
+	finally:
+		driver.quit()
 	# fusionner_captures_verticales(dossier="captures_debug")
 
-	assembler_document()
 
 
