@@ -79,3 +79,19 @@ run-all-safe:
 	else \
 		$(MAKE) run-all; \
 	fi
+
+# Lancer le scraping Studocu (CSV obligatoire)
+.PHONY: scrape-studocu
+scrape-studocu:
+	MSYS_NO_PATHCONV=1 docker run --rm \
+		-v "$$($(PWD_CMD)):/app" \
+		-w /app $(IMAGE_NAME) \
+		python studocu_scraper.py
+
+# Lancer le scraping Studocu + OCR pour tous les liens du CSV (optionnel, à personnaliser)
+.PHONY: scrape-studocu-all
+scrape-studocu-all:
+	MSYS_NO_PATHCONV=1 docker run --rm \
+		-v "$$($(PWD_CMD)):/app" \
+		-w /app $(IMAGE_NAME) \
+		python studocu_scraper.py --all
