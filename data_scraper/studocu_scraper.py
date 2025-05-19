@@ -19,6 +19,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.keys import Keys
+from pdf_image_cleaner import process_images
 
 def natural_sort_key(s):
 	return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
@@ -428,10 +429,12 @@ if __name__ == "__main__":
 				url = ligne["url"]
 				titre = studocu_slug(url)
 				dossier_temp = TEMP_FOLDER+"/"+titre
-				DB_file_path = DB_FOLDER+"/"+titre+"_final.png"
+				DB_ori_file_path = DB_FOLDER+"/original/"+titre+".png"
+				DB_cleaned_file_path = DB_FOLDER+"/cleaned/"+titre+"_cleaned.png"
+				DB_templates_path = DB_FOLDER+"/templates/"
 				# 🛑 Vérification si déjà capturé
-				if os.path.exists(DB_file_path):
-					print(f"⏩ Déjà traité, on saute : {DB_file_path}")
+				if os.path.exists(DB_ori_file_path):
+					print(f"⏩ Déjà traité, on saute : {DB_ori_file_path}")
 					continue
 
 				os.makedirs(dossier_temp, exist_ok=True)
@@ -443,6 +446,7 @@ if __name__ == "__main__":
 						random_sleep(2, 4)
 						capture_vue_premiere_page(driver=driver, url=url, dossier=dossier_temp)
 						assembler_document(dossier=dossier_temp, sortie=DB_file_path)
+						process_images(DB_ori_file_path, DB_cleaned_file_path, DB_templates_path)
 						break  # Succès, on sort du retry
 					except Exception as e:
 						print(f"❌ Erreur lors de la capture ({attempt+1}/{MAX_RETRIES}) : {e}")
