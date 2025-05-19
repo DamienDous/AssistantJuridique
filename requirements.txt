@@ -12,3 +12,4 @@ pillow
 webdriver-manager
 setuptools
 opencv-python
+pytesseract
