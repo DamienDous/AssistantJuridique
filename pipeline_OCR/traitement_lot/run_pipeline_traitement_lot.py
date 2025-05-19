@@ -7,8 +7,8 @@ import glob
 # Répertoires de base
 base_dir = Path(__file__).resolve().parents[2]
 pipeline_script = base_dir / "pipeline_OCR/pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh"
-input_dir = base_dir / "pipeline_OCR/traitement_lot/input_pdf"
-output_dir = base_dir / "pipeline_OCR/traitement_lot/output"
+input_dir = base_dir / "../../DB/cleaned"
+output_dir = base_dir / "../../DB/OCRise"
 
 print("📂 Répertoire d'entrée :", input_dir)
 print("📂 Répertoire de sortie :", output_dir)
@@ -18,7 +18,7 @@ print("⚙️  Script pipeline utilisé :", pipeline_script)
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Lister tous les fichiers PDF à traiter
-pdf_files = list(input_dir.glob("*.pdf"))
+pdf_files = list(input_dir.glob("*.png"))
 print(f"📄 {len(pdf_files)} fichier(s) PDF trouvé(s) dans {input_dir}")
 
 if not pdf_files:
