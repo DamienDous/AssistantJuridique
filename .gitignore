@@ -9,6 +9,7 @@ pipeline_OCR/traitement_lot/input_pdf/
 .venv/
 __pycache__/
 *.pyc
+*.png
 
 # IDE
 .vscode/
