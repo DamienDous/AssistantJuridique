@@ -7,7 +7,6 @@ undetected-chromedriver
 beautifulsoup4
 lxml
 requests
-PyMuPDF
 pillow
 webdriver-manager
 setuptools

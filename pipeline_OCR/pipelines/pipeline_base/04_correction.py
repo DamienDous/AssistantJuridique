@@ -83,7 +83,7 @@ def main():
         with open(output_path, "w", encoding="utf-8") as fout:
             fout.write(corrected)
 
-        print(f"✅ Corrigé : {output_path}")
+        # print(f"✅ Corrigé : {output_path}")
 
 if __name__ == "__main__":
     main()

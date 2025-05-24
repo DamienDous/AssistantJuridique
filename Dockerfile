@@ -2,9 +2,8 @@
 # Étape 1 : builder
 # ------------------------
 FROM ubuntu:18.04 AS builder
-
+ENV TESSDATA_PREFIX=/usr/local/share/tessdata
 ENV DEBIAN_FRONTEND=noninteractive \
-    TESSDATA_PREFIX=/usr/share/tessdata \
     CC=gcc-9 \
     CXX=g++-9
 
@@ -19,12 +18,19 @@ apt-get install -y --no-install-recommends \
     gcc-9 g++-9 \
     autoconf automake libtool cmake \
     libleptonica-dev libtiff-dev libpng-dev libjpeg-dev zlib1g-dev \
-    poppler-utils python3 python3-pip default-jre \
+    poppler-utils python3 python3-pip \
     qt4-qmake libqt4-dev libxrender-dev libx11-dev libxext-dev libgl1-mesa-dev \
     libboost-all-dev \
     && update-alternatives --install /usr/bin/gcc  gcc  /usr/bin/gcc-9 100 \
     && update-alternatives --install /usr/bin/g++  g++  /usr/bin/g++-9 100 \
 && rm -rf /var/lib/apt/lists/*
+
+# Installer curl et compiler Ghostscript 9.56
+RUN apt-get update && apt-get install -y curl && \
+    curl -LO https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs9560/ghostscript-9.56.0.tar.gz && \
+    tar -xzf ghostscript-9.56.0.tar.gz && cd ghostscript-9.56.0 && \
+    ./configure && make -j"$(nproc)" && make install && \
+    cd .. && rm -rf ghostscript-9.56.0*
 
 # 2. Compiler ScanTailor CLI
 RUN git clone https://github.com/scantailor/scantailor.git /opt/scantailor && \
@@ -48,16 +54,30 @@ RUN git clone --depth 1 https://github.com/tesseract-ocr/tesseract.git /opt/tess
     rm -rf /opt/tesseract
 
 # 4. Récupérer uniquement les données linguistiques
+RUN mkdir -p $TESSDATA_PREFIX
 RUN git clone --depth 1 https://github.com/tesseract-ocr/tessdata.git /tmp/tessdata && \
     cp /tmp/tessdata/*.traineddata $TESSDATA_PREFIX/ && \
+    cp /tmp/tessdata/osd.traineddata $TESSDATA_PREFIX/ && \
     rm -rf /tmp/tessdata
+
+# Installer Python 3.8 manuellement
+RUN add-apt-repository ppa:deadsnakes/ppa -y && \
+apt-get update && \
+apt-get install -y python3.8 python3.8-dev python3.8-distutils curl && \
+curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | python3.8
+
+RUN ln -sf /usr/bin/python3.8 /usr/bin/python && \
+    ln -sf /usr/local/bin/pip /usr/bin/pip3
 
 # 5. Installer les librairies Python + OCRmyPDF
 WORKDIR /app
 COPY requirements.txt /app/
 RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip3 install --no-cache-dir pymupdf==1.22.3 && \
     pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir ocrmypdf
+    pip3 install --no-cache-dir ocrmypdf && \
+    pip3 install --no-cache-dir pikepdf==6.2.4 && \
+    pip3 install --no-cache-dir img2pdf
 
 # 6. Copier ton application
 COPY . /app
@@ -68,21 +88,24 @@ COPY . /app
 FROM ubuntu:18.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    TESSDATA_PREFIX=/usr/share/tessdata \
+    TESSDATA_PREFIX=/usr/local/share/tessdata \
     LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8
+    LC_ALL=C.UTF-8 \
+    PYTHONPATH="/usr/local/lib/python3.8/dist-packages"
 
 # 1. Runtime minimal : libs image, PDF, Python, Java, OCRmyPDF dépendances
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libgomp1 \
     libleptonica-dev libtiff5 libpng16-16 libjpeg8 zlib1g \
-    poppler-utils ghostscript qpdf \
-    python3 python3-pip default-jre \
+    poppler-utils qpdf \
+    python3.8 python3.8-distutils python3-pip \
     libqtcore4 libqtgui4 libqt4-network libxrender1 libx11-6 libxext6 libgl1-mesa-glx \
-    libboost-system1.65.1 libboost-filesystem1.65.1 \
-&& update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
-&& rm -rf /var/lib/apt/lists/*
+    libboost-system1.65.1 libboost-filesystem1.65.1 bc unpaper libvips-tools && \
+    ln -sf /usr/bin/python3.8 /usr/bin/python && \
+    ln -sf /usr/bin/python3.8 /usr/bin/python3 && \
+    ln -sf /usr/local/bin/pip /usr/bin/pip3 && \
+    rm -rf /var/lib/apt/lists/*
 
 # installer et générer le locale français
 RUN apt-get update \
@@ -90,24 +113,24 @@ RUN apt-get update \
  && locale-gen fr_FR.UTF-8 \
  && update-locale LANG=fr_FR.UTF-8 LC_ALL=fr_FR.UTF-8
  
-# 2. Copier les binaires compilés et données
-COPY --from=builder /usr/local/bin/tesseract /usr/local/bin/
-COPY --from=builder /usr/local/bin/scantailor-cli /usr/local/bin/
-# Copier les libs Tesseract (construites dans le builder) vers le runtime
-COPY --from=builder /usr/local/lib/libtesseract.so.5* /usr/local/lib/
-# copier la libstdc++ du builder (GCC-9)
+# 2. Copier binaires et bibliothèques nécessaires depuis le builder
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/lib/ /usr/local/lib/
+COPY --from=builder /usr/local/lib/python3.8/dist-packages /usr/local/lib/python3.8/dist-packages
+COPY --from=builder /usr/local/share/tessdata /usr/local/share/tessdata
+# Copier l'interpréteur Python 3.8 et pip
+COPY --from=builder /usr/bin/python3.8 /usr/bin/python3.8
+COPY --from=builder /usr/local/bin/pip /usr/local/bin/pip
+# Mettre à jour les liens symboliques
+RUN ln -sf /usr/bin/python3.8 /usr/bin/python && \
+    ln -sf /usr/local/bin/pip /usr/bin/pip3
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
+COPY --from=builder /usr/local/bin/gs /usr/local/bin/gs
+COPY --from=builder /usr/local/lib/libgs.so* /usr/local/lib/
 # Mettre à jour le cache de ld
 RUN ldconfig
-COPY --from=builder /usr/share/tessdata /usr/share/tessdata
-
-# 3. Copier les modules Python et OCRmyPDF
-COPY --from=builder /usr/local/lib/python3.6/dist-packages /usr/local/lib/python3.6/dist-packages
-
-# copier les scripts CLI installés par pip dans builder
-COPY --from=builder /usr/local/bin/ocrmypdf /usr/local/bin/
+# Copier les scripts
 COPY dico_juridique.txt /app/dico_juridique.txt
-# Copier votre script de structuration
 COPY pipeline_OCR/pipelines/pipeline_base/structure_juridique.py /app/pipeline_OCR/pipelines/pipeline_base/structure_juridique.py
 
 # 4. Copier ton code APP
