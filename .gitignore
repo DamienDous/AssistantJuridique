@@ -1,12 +1,12 @@
 # 🔄 Fichiers générés automatiquement
 pipeline_OCR/processed_files/
 pipeline_OCR/evaluation/logs/
-pipeline_OCR/traitement_lot/output/
-pipeline_OCR/traitement_lot/input_pdf/
+pipeline_OCR/traitement_lot/
 
 # 🧪 Environnements Python
 .env/
 .venv/
+env/
 __pycache__/
 *.pyc
 *.png
