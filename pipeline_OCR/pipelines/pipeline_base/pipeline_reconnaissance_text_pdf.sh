@@ -17,65 +17,48 @@ PDF_FILE="$1"
 WORKDIR="$2"
 export WORKDIR
 
-PNG_DIR="$1"
-if [ ! -d "$PNG_DIR" ]; then
-  echo "❌ Le dossier d’images PNG n’existe pas : $PNG_DIR"
+if [ ! -f "$PDF_FILE" ]; then
+  echo "❌ Le fichier PDF n’existe pas : $PDF_FILE"
   exit 1
 fi
 
 # Chemins de travail
-FILENAME=$(basename "$PNG_DIR")
-BASE_OUT="$WORKDIR/${FILENAME}_traitement"
-IMAGES_DIR="${BASE_OUT}/${FILENAME}_images"
-CLEANED_DIR="${BASE_OUT}/${FILENAME}_cleaned"
-SLICES_DIR="${BASE_OUT}/${FILENAME}_slices"
-TXT_DIR="${BASE_OUT}/${FILENAME}_txt"
-CORR_DIR="${BASE_OUT}/${FILENAME}_txt_corrige"
-FINAL_PDF="${BASE_OUT}/${FILENAME}_final_corrige.pdf"
+FILENAME=$(basename "$PDF_FILE" .pdf)
+IMAGES_DIR="${WORKDIR}/${FILENAME}_images"
+CLEANED_DIR="${WORKDIR}/${FILENAME}_cleaned"
+TXT_DIR="${WORKDIR}/${FILENAME}_txt"
+CORR_DIR="${WORKDIR}/${FILENAME}_txt_corrige"
+FINAL_PDF="${WORKDIR}/${FILENAME}_final_corrige.pdf"
 
-mkdir -p "$IMAGES_DIR" "$CLEANED_DIR" "$SLICES_DIR" "$TXT_DIR" "$CORR_DIR"
+mkdir -p "$IMAGES_DIR" "$CLEANED_DIR" "$TXT_DIR" "$CORR_DIR"
 
-echo "📥 Étape 1 : Copie des PNG vers le dossier de travail"
-cp "$PNG_DIR"/*.png "$IMAGES_DIR/"
+# --- ÉTAPE 1 : PDF → TIFF
+echo "📄 Étape 1 : PDF → TIFF"
+pdftoppm -r 300 "$PDF_FILE" "$IMAGES_DIR/page" -tiff
 
-echo "🧼 Étape 2 : Nettoyage avec unpaper"
-mkdir -p "$CLEANED_DIR"
-for img in "$IMAGES_DIR"/*.png; do
-  BASENAME=$(basename "$img")
-  unpaper --overwrite "$img" "$CLEANED_DIR/$BASENAME"
-done
-INPUT_IMG_DIR="$CLEANED_DIR"
-IMG=$(ls "$CLEANED_DIR"/*.png | head -n 1)
+# --- ÉTAPE 2 : Nettoyage (ScanTailor ou unpaper)
+if command -v scantailor-cli >/dev/null 2>&1; then
+  echo "🔧 Étape 2 : ScanTailor CLI détecté, nettoyage avancé du répertoire…"
+  scantailor-cli \
+    --layout=1 \
+    --content-detection=normal \
+    --deskew=auto \
+    --output-dpi=300 \
+    --despeckle=strong \
+    "$IMAGES_DIR" \
+    "$CLEANED_DIR"
+else
+  for img in "$IMAGES_DIR"/*.tif; do
+    unpaper --overwrite "$img" "$CLEANED_DIR/$(basename "$img")"
+  done
+fi
 
-echo "✂️ Étape 2 bis : Découpage vertical des grandes images"
-SLICE_HEIGHT=1730
-HEIGHT=$(vipsheader -f height "$img")
-WIDTH=$(vipsheader -f width "$img")
-IMG_BASENAME=$(basename "$img" .png)
-
-NUM_SLICES=$(( (HEIGHT + SLICE_HEIGHT - 1) / SLICE_HEIGHT ))
-echo "Découpage de $img (${WIDTH} x ${HEIGHT} px) en $NUM_SLICES tranches..."
-
-for ((i=0; i<NUM_SLICES; i++)); do
-  OFFSET=$((i * SLICE_HEIGHT))
-  HEIGHT_SLICE=$SLICE_HEIGHT
-
-  # Ajuster la hauteur si on dépasse à la dernière tranche
-  if (( OFFSET + SLICE_HEIGHT > HEIGHT )); then
-    HEIGHT_SLICE=$(( HEIGHT - OFFSET ))
-  fi
-
-  OUTFILE="$SLICES_DIR/${IMG_BASENAME}_slice_$((i+1)).png"
-  vips crop "$img" "$OUTFILE" 0 "$OFFSET" "$WIDTH" "$HEIGHT_SLICE"
-done
-
-
-INPUT_IMG_DIR="$SLICES_DIR"
+  INPUT_IMG_DIR="$CLEANED_DIR"
 
 # --- Étape 3 : Génération PDF avec img2pdf sans option -S ---
 echo "🔠 Étape 3 : OCR et génération PDF searchable avec ocrmypdf"
-CLEANPDF="$BASE_OUT/${FILENAME}_cleaned.pdf"
-images=( "$INPUT_IMG_DIR"/*.png )
+CLEANPDF="$WORKDIR/${FILENAME}_cleaned.pdf"
+images=( "$CLEANED_DIR"/*.tif )
 python3 -m img2pdf "${images[@]}" -o "$CLEANPDF"
 ocrmypdf \
   --force-ocr \
@@ -85,17 +68,14 @@ ocrmypdf \
   "$CLEANPDF" \
   "$FINAL_PDF"
 
-echo "📄 Résolution du PDF final (info Ghostscript) :"
-pdfinfo "$FINAL_PDF" | grep -i 'Page size\|File size'
-
 # --- ÉTAPE 4 : Extraction du texte global pour correction ---
 echo "📂 Étape 4 : Extraction du texte pour LanguageTool"
 pdftotext -layout "$FINAL_PDF" "$TXT_DIR/${FILENAME}.txt"
 
 # --- ÉTAPE 5 : Extraction du texte brut par page (optionnel, NLP) ---
 echo "📂 Étape 5 : Extraction du texte brut par page avec tesseract"
-for img in "$INPUT_IMG_DIR"/*.png; do
-  OUTFILE="$TXT_DIR/$(basename "${img%.png}").txt"
+for img in "$INPUT_IMG_DIR"/*.tif; do
+  OUTFILE="$TXT_DIR/$(basename "${img%.tif}").txt"
   tesseract "$img" "${OUTFILE%.txt}" -l fra+eng
 done
 
@@ -112,8 +92,9 @@ python3 "$SCRIPT_DIR/04_correction.py" \
   "$CORR_DIR"
 
 # --- ÉTAPE 8 : Copie du PDF final ---
-echo "✅ Étape 8 : Copie du PDF final dans output/"
+echo "✅ Étape 8 : Copie du PDF final et texte corrigé dans output/"
 cp "$FINAL_PDF" "$ROOT_DIR/traitement_lot/output/${FILENAME}_final_corrige.pdf"
+cp "$CORR_DIR/${FILENAME}.txt" "$ROOT_DIR/traitement_lot/output/${FILENAME}.txt"
 
 # --- ÉTAPE 9 : Structuration sémantique (facultatif) ---
 echo "🏷️ Étape 9 : Structuration juridique"
@@ -141,7 +122,3 @@ sort -u "$DICT_FILE" -o "$DICT_FILE"
 
 echo "✅ Dictionnaire métier mis à jour : $(wc -l < "$DICT_FILE") termes"
 
-# --- ÉTAPE 11 : Copie du texte corrigé ---
-echo "📋 Étape 11 : Copie du texte corrigé dans output/"
-cp "$FINAL_PDF" "$ROOT_DIR/traitement_lot/output/${FILENAME}_final_corrige.pdf"
-cp "$CORR_DIR/${FILENAME}.txt" "$ROOT_DIR/traitement_lot/output/${FILENAME}.txt"
