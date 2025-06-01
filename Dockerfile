@@ -101,7 +101,7 @@ RUN apt-get update && \
     poppler-utils qpdf \
     python3.8 python3.8-distutils python3-pip \
     libqtcore4 libqtgui4 libqt4-network libxrender1 libx11-6 libxext6 libgl1-mesa-glx \
-    libboost-system1.65.1 libboost-filesystem1.65.1 bc unpaper libvips-tools && \
+    libboost-system1.65.1 libboost-filesystem1.65.1 bc unpaper default-jre-headless && \
     ln -sf /usr/bin/python3.8 /usr/bin/python && \
     ln -sf /usr/bin/python3.8 /usr/bin/python3 && \
     ln -sf /usr/local/bin/pip /usr/bin/pip3 && \
