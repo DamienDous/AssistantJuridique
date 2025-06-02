@@ -1,4 +1,3 @@
-
 import subprocess
 from pathlib import Path
 import shutil
@@ -6,9 +5,9 @@ import glob
 
 # Répertoires de base
 base_dir = Path(__file__).resolve().parents[2]
-pipeline_script = base_dir / "pipeline_OCR/pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh"
-input_dir = base_dir / "../../DB/cleaned"
-output_dir = base_dir / "../../DB/OCRise"
+pipeline_script = base_dir / "pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh"
+input_dir = base_dir / "../DB/cleaned"
+output_dir = base_dir / "../DB/OCRise"
 
 print("📂 Répertoire d'entrée :", input_dir)
 print("📂 Répertoire de sortie :", output_dir)
