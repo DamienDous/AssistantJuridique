@@ -1,8 +1,6 @@
-# ——————————————
-# CONFIGURATION UTILISATEUR
-# ——————————————
 EMAIL = "ghazi.dous@gmail.com"
-PASSWORD = "opeAPV2002!"
+PASSWORD = "opeAPV2002!!"
+
 # coding: utf-8
 
 import os
@@ -13,6 +11,7 @@ from PIL import Image
 from pdf2image import convert_from_path
 import pyperclip
 import re
+import random
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -30,7 +29,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 # CONFIGURATION UTILISATEUR
 # ——————————————
 
-
 # Chemin vers le PDF à traiter (un seul PDF à la fois pour ce script)
 PDF_FOLDER_PATH = r".\traitement_lot\test_chatgpt_pdf"
 
@@ -38,14 +36,13 @@ PDF_FOLDER_PATH = r".\traitement_lot\test_chatgpt_pdf"
 TESSERACT_LANG = "fra"
 
 # Dossier temporaire pour stocker les images rasterisées (OCR)
-TMP_IMG_FOLDER = r".\temp\images"
+TMP_IMG_FOLDER = r".\traitement_lot\images"
 
 # Fichier intermédiaire pour écrire le prompt que l’on enverra à ChatGPT
-PROMPT_FOLDER = r".\temp\prompt"
-JSON_FOLDER = r".\temp\json"
+PROMPT_FOLDER = r".\traitement_lot\prompt"
+JSON_FOLDER = r".\traitement_lot\json"
 # Fichier de sortie pour la réponse de ChatGPT
 OUTPUT_RESPONSE_FILE = r".\chatgpt_reponse.txt"
-
 
 # ——————————————
 # FONCTIONS D’EXTRACTION DE TEXTE
@@ -75,7 +72,6 @@ def extraire_texte_pdf(pdf_path):
 	# Sinon, on passe en OCR (PDF scanné ou texte non détectable)
 	print("ℹ️ Pas de texte détectable directement, on passe en OCR (images).")
 	return re.sub(r'\s+', ' ', extraire_texte_par_ocr(pdf_path)).strip()
-
 
 def extraire_texte_par_ocr(pdf_path):
 	"""
@@ -111,36 +107,47 @@ def extraire_texte_par_ocr(pdf_path):
 
 	return texte_total
 
-
 # ——————————————
 # GÉNÉRATION DU PROMPT
 # ——————————————
 
-def generer_prompt_cas_pratique(texte_cas):
-	"""
-	Face au texte complet du cas pratique, on fabrique un prompt structuré.  
-	Ici, on fait au plus simple : on préfixe avec les rubriques puis on colle le texte brut.
-	"""
+def generer_prompt_cas_pratique_resume(texte_cas):
 	entete = (
-		"À partir de ce cas pratique juridique, génère un fichier JSON strict et minimaliste contenant uniquement"
-		"les catégories suivantes : Faits, Problématique, Règles, Analyse, Solution."
-		"Ne fais aucune supposition ou ajout d'information, utilise uniquement ce qui est explicitement écrit. "
+		"Veuillez générer un résumé concis du cas pratique suivant, tout en respectant "
+		"les points essentiels sans découper trop explicitement les informations. Le "
+		"résumé doit reprendre l'ensemble des éléments du cas sans trop simplifier ou "
+		"découper, et doit refléter l'esprit du cas dans sa globalité : "
+		"Incluez les faits principaux, la problématique juridique, les règles juridiques "
+		"pertinentes, l’analyse des éléments du cas, et la solution ou la conclusion légale. "
+		"Assurez-vous de ne pas simplifier de manière excessive ou de découper en "
+		"sous-catégories, car cela pourrait rendre le cas trop évident et non représentatif "
+		"de la complexité réelle du cas juridique. "
+		"Ne créez pas une structure en JSON ou en liste, mais plutôt un texte fluide qui "
+		"contient tous les éléments du cas, sans trop d'explication explicite des sous-catégories. "
+		"Si plusieurs cas pratiques sont présents dans le texte, veuillez choisir le cas "
+		"pratique le plus complexe à résumer. Le résumé doit être "
+		"rédigé en texte normal "
 	)
 	return entete + texte_cas
 
-def generer_prompt_cas_pratique_enrichi(texte_cas):
-	"""
-	Face au texte complet du cas pratique, on fabrique un prompt structuré.  
-	Ici, on fait au plus simple : on préfixe avec les rubriques puis on colle le texte brut.
-	"""
+def generer_prompt_cas_pratique_json():
 	entete = (
-		"En te basant sur ce cas pratique juridique, génère un fichier JSON"
-		"complet avec les rubriques Faits, Problématique, Règles, Analyse et Solution."
-		"Pour chaque rubrique, développe les arguments, intègre des références jurisprudentielles,"
-		"explique clairement le raisonnement juridique."
-		"Ajoute des remarques pédagogiques sans déformer les faits. "
-	)
-	return entete + texte_cas
+			"Maintenant, veuillez convertir ce résumé suivant (sans modification), s'il est présent "
+			"OU s'il est écrit 'PAS DE RESUME', veuillez convertir le résumé que vous avez généré "
+			"précédemment (sans modification) en un fichier JSON structuré, en utilisant exactement "
+			"les mêmes informations, mais sous la forme suivante :"
+			"{"
+			"   'Faits': ['Fait 1', 'Fait 2', 'Fait 3'],"
+			"   'Problématique': 'Problématique juridique résumée ici.',"
+			"   'Règles': ['Règle 1', 'Règle 2', 'Règle 3'],"
+			"   'Analyse': ['Analyse 1', 'Analyse 2'],"
+			"   'Solution': 'Solution finale résumée ici.'"
+			"}"
+			"La structure du JSON doit correspondre exactement à celle fournie ci-dessus."
+			"Utilisez le résumé précédent pour remplir le JSON en respectant la structure fournie. "
+			"Vérifiez que chaque élément du résumé est inclus dans le JSON. Par exemple, assurez-vous que chaque fait dans la section 'Faits' correspond à une entrée JSON, et que la problématique est clairement formulée dans la section 'Problématique' du JSON."
+			)
+	return entete
 
 def ecrire_prompt_dans_fichier(prompt, chemin):
 	with open(chemin, "w", encoding="utf-8") as f:
@@ -152,19 +159,41 @@ def ecrire_prompt_dans_fichier(prompt, chemin):
 # AUTOMATISATION CHROME / CHATGPT
 # ——————————————
 
-def init_driver():
+def generer_user_agent():
+	user_agents = [
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36 Edge/16.16299",
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36",
+		"Mozilla/5.0 (Windows NT 6.1; WOW64; rv:23.0) Gecko/20100101 Firefox/23.0",
+		"Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0"
+	]
+	return random.choice(user_agents)
+
+def init_driver_with_proxy(proxy_ip):
 	options = uc.ChromeOptions()
 	options.add_argument("--disable-blink-features=AutomationControlled")
 	options.add_argument("--window-size=1280,900")
-	# options.add_argument("--headless=new")  # Si besoin du mode headless
+	
+	# Assurez-vous que le profil est bien créé à chaque lancement
+	# options.add_argument(f"--user-data-dir={r'./chrome_profiles/chrome_profile_' + str(int(time.time()))}")
+
+	# Ajouter proxy si nécessaire
+	# options.add_argument(f"--proxy-server={proxy_ip}")  # Utiliser un proxy pour chaque session
 
 	# Ajout des prefs pour autoriser l'accès au presse-papiers sans popup
-	prefs = {
-		"profile.default_content_setting_values.clipboard": 1  # 1 = autoriser, 2 = bloquer
-	}
-	options.add_experimental_option("prefs", prefs)
+	# prefs = {
+	# 	"profile.default_content_setting_values.clipboard": 1  # 1 = autoriser, 2 = bloquer
+	# }
+	# options.add_experimental_option("prefs", prefs)
+	
+	# Configuration utilisateur, user-agent, etc.
+	user_agent = generer_user_agent()  # Assure-toi que cette fonction génère un user-agent correct
+	options.add_argument(f"user-agent={user_agent}")
 
+	# Crée le driver Chrome avec les options définies
 	driver = uc.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+	
+	# Si tu souhaites désactiver la détection de l'automatisation, garde cette ligne
 	driver.execute_cdp_cmd(
 		"Page.addScriptToEvaluateOnNewDocument",
 		{
@@ -175,6 +204,7 @@ def init_driver():
 			"""
 		},
 	)
+
 	return driver
 
 def click_when_visible(wait, by, selector, retries=3):
@@ -198,7 +228,6 @@ def click_when_visible(wait, by, selector, retries=3):
 		except TimeoutException as e:
 			# Si on n'a pas trouvé l'élément à temps, on remonte l'exception
 			raise e
-
 
 def se_connecter_chatgpt(driver, email, mot_de_passe, timeout=20, retries=3):
 	wait = WebDriverWait(driver, timeout)
@@ -248,9 +277,31 @@ def se_connecter_chatgpt(driver, email, mot_de_passe, timeout=20, retries=3):
 		driver.quit()
 		return False
 
+	time.sleep(15)
+
 	# À ce stade, vous devriez être connecté. Il peut y avoir un 2FA ou un autre écran,
 	# mais on se contentera ici de considérer que la connexion a réussi.
 	return True
+
+def fermer_popup_connexion(driver, timeout=10):
+	"""
+	Ferme le popup de connexion s'il est visible.
+	"""
+	try:
+		# Vérifier si le bouton "Annuler" ou "Se connecter" existe
+		bouton_annuler = driver.find_elements(By.XPATH, "//button[text()='Annuler']")
+		bouton_se_connecter = driver.find_elements(By.XPATH, "//button[text()='Se connecter']")
+		
+		if bouton_annuler:
+			bouton_annuler[0].click()  # Cliquer sur "Annuler" pour fermer le popup
+			print("✅ Popup de connexion fermé par 'Annuler'.")
+		
+		elif bouton_se_connecter:
+			bouton_se_connecter[0].click()  # Cliquer sur "Se connecter" si nécessaire
+			print("✅ Popup de connexion fermé par 'Se connecter'.")
+		
+	except Exception as e:
+		print(f"⚠️ Erreur lors de la fermeture du popup de connexion : {e}")
 
 def attendre_bouton_copier_complexe(driver, nombre_attendu_boutons, timeout=60, poll_interval=0.5):
 	"""
@@ -262,86 +313,99 @@ def attendre_bouton_copier_complexe(driver, nombre_attendu_boutons, timeout=60, 
 		"//button[@aria-label='Copier' and contains(@class,'text-token-text-secondary')]"
 	)
 	start_time = time.time()
-	
+
 	while True:
 		boutons = driver.find_elements(By.XPATH, xpath_cible)
 		if len(boutons) >= nombre_attendu_boutons:
 			bouton_copier = boutons[-1]
 			driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", bouton_copier)
 			time.sleep(1.5)
+
+			# Vérifie si le bouton est cliquable avant de le retourner
+			WebDriverWait(driver, timeout).until(EC.element_to_be_clickable(bouton_copier))
+
 			print(f"✅ {len(boutons)} boutons détectés, dernier bouton prêt à être cliqué.")
 			return bouton_copier
-		
+
 		if time.time() - start_time > timeout:
 			raise TimeoutException(f"⏳ Timeout : {len(boutons)} boutons trouvés, attendu au moins {nombre_attendu_boutons}.")
-		
+
 		time.sleep(poll_interval)
 
-def attendre_et_copier_json(driver, timeout=60):
-	wait = WebDriverWait(driver, timeout)
-
-	# 1) Attendre que le cadre JSON soit visible
-	cadre_json = wait.until(EC.visibility_of_element_located((
-		By.XPATH,
-		"//div[contains(@class,'rounded-md') and .//div[contains(text(),'json')]]"
-	)))
-	print("✅ Cadre JSON visible")
-
-	bouton_copier = attendre_bouton_copier_complexe(driver, timeout=120)
-	time.sleep(2)
-
+def verifier_ou_reconnecter(driver, timeout=10):
+	"""
+	Vérifie si la page est déconnectée et si le bouton "Rester déconnecté" est visible.
+	Si le popup de déconnexion est détecté, on clique sur "Rester déconnecté" et continue le processus.
+	"""
 	try:
-		bouton_copier.click()
-		print("✅ Bouton 'Copier' cliqué normalement.")
-	except ElementClickInterceptedException:
-		print("⚠️ Clic intercepté, tentative via JavaScript.")
-		driver.execute_script("arguments[0].click();", bouton_copier)
-		print("✅ Bouton 'Copier' cliqué via JavaScript.")
+		# Vérifier si le bouton de déconnexion est visible
+		bouton_rester_deconnecte = driver.find_elements(By.XPATH, "//button[contains(text(), 'Rester déconnecté')]")
+		if bouton_rester_deconnecte:
+			bouton_rester_deconnecte[0].click()  # Ferme le popup "Rester déconnecté"
+			print("✅ Popup 'Rester déconnecté' fermé.")
+			return True  # La page a été réinitialisée
+		else:
+			print("✅ Pas de popup 'Rester déconnecté' détecté.")
+			return False  # Pas de déconnexion
+	except Exception as e:
+		print(f"⚠️ Erreur lors de la vérification ou fermeture du popup de déconnexion : {e}")
+		return False
 
-	time.sleep(3)
+def relancer_page(driver, url="https://chat.openai.com", retries=3):
+	"""
+	Si la page plante ou si l'utilisateur est déconnecté, on relance la page.
+	"""
+	for _ in range(retries):
+		try:
+			driver.get(url)
+			time.sleep(2)
+			print(f"✅ Page relancée avec succès.")
+			return True
+		except Exception as e:
+			print(f"❌ Échec de la relance de la page : {e}")
+			time.sleep(5)
+	return False
 
 def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_reponse, timeout=120):
 	"""
-	1) Repère la zone de saisie : <textarea tabindex='0'>  
-	2) Coupe le prompt en lignes, puis pour chaque ligne : taper → SHIFT+ENTER  
-	3) Enfin taper → ENTER pour envoyer le prompt  
-	4) Attendre l’apparition des réponses (<div class='markdown'>)  
-	5) Scroller jusqu’à la fin (hauteur ne change plus)  
-	6) Récupérer le dernier <div class='markdown'>  
+	Envoi le prompt à ChatGPT de manière naturelle, ajoute des délais réalistes et gère les erreurs de page.
 	"""
 	wait = WebDriverWait(driver, 10)
+
+	# Fermer le popup de connexion ou de consentement, si présent
+	fermer_popup_connexion(driver)
 
 	zone_placeholder = wait.until(EC.element_to_be_clickable((
 		By.CSS_SELECTOR,
 		"p[data-placeholder='Poser une question']"
 	)))
 	zone_placeholder.click()
-	# Au clique, le focus passe dans le <div contenteditable="true"> sous-jacent.
-	time.sleep(0.5)
-	print(prompt)
+	time.sleep(random.uniform(1, 1.5))  # Pause entre les actions pour simuler un comportement humain
 
 	# On récupère l’élément actif (c’est le contenteditable sur lequel on peut taper)
 	editor = driver.switch_to.active_element
 	lignes = prompt.split("\n")
 
-	# Envoyer par blocs de 10 lignes
-	taille_bloc = 20
+	# Envoyer par blocs de 10 lignes, avec un délai naturel
+	taille_bloc = 1
 	for i in range(0, len(lignes), taille_bloc):
-		bloc = lignes[i:i+taille_bloc]
+		bloc = lignes[i:i + taille_bloc]
 		editor.send_keys(bloc)
 		editor.send_keys(Keys.SHIFT, Keys.ENTER)  # saut de ligne sans envoyer
+		# time.sleep(random.uniform(1, 2))  # Délai réaliste entre les envois de lignes
 
 	# Envoi final du message
 	editor.send_keys(Keys.ENTER)
-	time.sleep(0.5)
-
-	# Envoi final
-	editor.send_keys(Keys.ENTER)
+	time.sleep(random.uniform(1, 1.5))  # Pause après l'envoi
 
 	print("▶ Prompt envoyé à ChatGPT.")
-	time.sleep(15)
-	print("attente réponse gpt")
-	
+	time.sleep(15)  # Attente pour la réponse de ChatGPT
+
+	# Vérifier si la page a été déconnectée, si oui, la relancer
+	if verifier_ou_reconnecter(driver):
+		return envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_reponse, timeout)
+
+	print("attente réponse gpt -> numero_reponse : ", numero_reponse)
 	bouton_copier = attendre_bouton_copier_complexe(driver, nombre_attendu_boutons=numero_reponse)
 	time.sleep(2)
 
@@ -357,22 +421,18 @@ def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_r
 
 	# Lire le contenu du presse-papiers
 	json_copie = pyperclip.paste()
-	print("json collé")
 
-	print("Contenu JSON copié :")
 	pattern = r"json\s*(\{.*?\})\s*"
 	match = re.search(pattern, json_copie, re.DOTALL)
 
 	if match:
-		json_copie_texte = match.group(1)+"\n}"
-		print("JSON extrait :")
-		print(json_copie_texte)
+		json_copie_texte = match.group(1)
+		print("JSON récupéré")
 	else:
-		print("Pas de bloc JSON trouvé.")
+		print("Texte récupéré")
 		json_copie_texte = json_copie
-		print(json_copie)
 
-	# 4) Sauvegarder dans un fichier
+	# Sauvegarder dans un fichier
 	with open(fichier_sortie, "w", encoding="utf-8") as f:
 		f.write(json_copie_texte)
 	
@@ -380,43 +440,41 @@ def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_r
 	
 	return ""
 
-
 # ——————————————
 # PROGRAMME PRINCIPAL
 # ——————————————
 
 def main():
-	# 3) Lancer Chrome + Selenium et se connecter à ChatGPT
-	driver = init_driver()
+	# Lancer Chrome + Selenium et se connecter à ChatGPT
+	proxy_ip = "http://51.81.245.3:17981"
+	driver = init_driver_with_proxy(proxy_ip)
 	try:
-		# succes_connexion = se_connecter_chatgpt(driver, EMAIL, PASSWORD)
-		# if not succes_connexion:
-		# 	return
-		# time.sleep(2)
-		# 4) Une fois connecté, on navigue sur la page de chat précise :
-		chat_url = "https://chatgpt.com"
+		succes_connexion = se_connecter_chatgpt(driver, EMAIL, PASSWORD)
+		if not succes_connexion:
+			return
+		time.sleep(2)
+
+		# Connexion
+		chat_url = "https://chatgpt.com/"
 		driver.get(chat_url)
 		time.sleep(2)
 
-		# 4) Attendre que le bouton (ou la zone) pour entrer le texte apparaisse
+		prompt_json = generer_prompt_cas_pratique_json()
+
+		# Attente et vérification
 		wait = WebDriverWait(driver, 20)
-		numero_reponse = 0
+		cpt = 0
 		for i, nom_fichier in enumerate(os.listdir(PDF_FOLDER_PATH), start=1):
 			chemin_complet = os.path.join(PDF_FOLDER_PATH, nom_fichier)
 
 			nom_sans_ext, extension = os.path.splitext(nom_fichier)
 			txt_path = PROMPT_FOLDER + "/" + nom_sans_ext + ".txt"
-			txt_enrichi_path = PROMPT_FOLDER + "/" + nom_sans_ext + "_enrichi.txt"
-			print(txt_path)
 			if os.path.isfile(txt_path):
-				print(txt_path, "existe")
+				print("✅ ", txt_path, " existe")
 				with open(txt_path, "r", encoding="utf-8") as f:
-					prompt = f.read()
-			if os.path.isfile(txt_enrichi_path):
-				with open(txt_enrichi_path, "r", encoding="utf-8") as f:
-					prompt_enrichi = f.read()
+					texte_complet = f.read()
 			else:
-				print(txt_path, "n'existe pas")
+				print("⚠️ ", txt_path, " n'existe pas")
 				# 1) Extraire le texte du PDF (ou OCR)
 				print(f"📄 Extraction du texte depuis : {chemin_complet} …")
 				texte_complet = extraire_texte_pdf(chemin_complet)
@@ -424,24 +482,32 @@ def main():
 					print("❗ Aucune donnée textuelle récupérée du PDF.")
 					return
 				# Générer le prompt structuré
-				prompt = generer_prompt_cas_pratique(texte_complet)
-				prompt_enrichi = generer_prompt_cas_pratique_enrichi(texte_complet)
-				ecrire_prompt_dans_fichier(prompt, txt_path)
-				ecrire_prompt_dans_fichier(prompt_enrichi, txt_path)
+				ecrire_prompt_dans_fichier(texte_complet, txt_path)
 				
-			# 4) Envoyer le prompt complet et récupérer la réponse
+			resume_path = JSON_FOLDER + "/" + nom_sans_ext + "_resume.txt"
 			json_path = JSON_FOLDER + "/" + nom_sans_ext + ".json"
-			reponse = envoyer_prompt_et_recuperer_reponse(driver, prompt, json_path, numero_reponse=i)
-
-			json_enrichi_path = JSON_FOLDER + "/" + nom_sans_ext + "_enrichi.json"
-			reponse_enrichie = envoyer_prompt_et_recuperer_reponse(driver, prompt_enrichi, json_enrichi_path, numero_reponse=i)
 			
-		time.sleep(100)
+			if os.path.isfile(json_path) and os.path.isfile(resume_path):
+				print("⚠️ Cas pratique déjà prompté")
+				continue
+			
+			prompt_resume = generer_prompt_cas_pratique_resume(texte_complet)
+			print("👉 taille prompt: ", len(prompt_resume))
 
+			# Traiter les fichiers
+			cpt += 1
+			if len(prompt_resume) > 5000:
+				reponse = envoyer_prompt_et_recuperer_reponse(driver, prompt_resume, resume_path, numero_reponse=cpt)
+			else:
+				prompt_json += " "
+				prompt_json += texte_complet
+			cpt += 1
+			reponse_enrichie = envoyer_prompt_et_recuperer_reponse(driver, prompt_json, json_path, numero_reponse=cpt)
+		
+		time.sleep(100)
 	finally:
 		driver.quit()
 		print("🔒 Navigateur fermé. Fin du script.")
-
 
 if __name__ == "__main__":
 	main()
