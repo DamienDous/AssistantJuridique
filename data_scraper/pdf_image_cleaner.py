@@ -128,15 +128,11 @@ def remove_ad_areas_and_concat(img, templates, threshold):
 				# On prend le y max (le plus bas)
 				pt_max = max(pts, key=lambda pt: pt[1])
 				x, y = pt_max[0], pt_max[1]
-				(y1, y2, x1, x2) = (y, y+tpl_h, x, x+tpl_w)
-				print("suppression de :", y1, y2, x1, x2)
-				# On ne recolle verticalement que si la largeur du template = largeur de l’image (cas d’un footer)
-				if (x1 == 0 and x2 == w):
-					# Coupe et recolle la partie sous le bloc à la place du bloc
-					img = np.vstack((img[:y1, :], img[y2:, :]))
-				else:
-					# Sinon, on masque
-					img[y1:y2, x1:x2] = (255, 255, 255)
+				(y1, y2) = (y, y+tpl_h)
+				print("suppression de :", y1, y2)
+				# Coupe et recolle la partie sous le bloc à la place du bloc
+				img = np.vstack((img[:y1, :], img[y2:, :]))
+
 				break  # On sort du for et on recommence while True
 		else:
 			# Le for s'est terminé sans break → on peut sortir du while
@@ -152,16 +148,16 @@ def process_images(img_path, output_img_path, templates_folder):
 	img = cv2.imread(img_path)
 	img_wo_ad = remove_ad_areas_and_concat(img, footer_templates, THRESHOLD)
 	# img_cropped = crop_footer_with_orb(img_wo_ad, footer_templates)
-	cv2.imwrite(output_img_path, img_wo_ad)
+	img_cropped = img_wo_ad[:-200, :]
+	cv2.imwrite(output_img_path, img_cropped)
 
 
 def process_images_folder(input_folder, output_folder, templates_folder):
 	os.makedirs(output_folder, exist_ok=True)
 	for img_path in glob(os.path.join(input_folder, "*.png")):
-		
-		output_img_path = output_folder + "/" + os.path.basename(img_path) + "*.png"
-		print(output_img_path)
+		output_img_path = output_folder + "/" + os.path.basename(img_path)
 		process_images(img_path, output_img_path, templates_folder)
 
+
 if __name__ == "__main__":
-	process_images_folder("../DB/original", "../DB/cleaned", "templates")
+	process_images_folder("DB/png", "DB/cleaned_png", "DB/templates")
