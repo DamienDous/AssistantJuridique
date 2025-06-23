@@ -1,0 +1,24 @@
+{
+  "Faits": [
+    "Un couple a deux enfants.",
+    "La mère est en conflit avec le père car elle souhaite vendre un tableau que l’une de ses filles a reçu lors d’une succession.",
+    "Le père n’est pas d’accord avec cela."
+  ],
+  "Problématique": "Un parent peut-il sans le consentement de l'autre parent, modifier le contenu du patrimoine de l'enfant ?",
+  "Règles": [
+    "Article 382-1 du Code civil : Lorsque l’administration légale est partagée par les parents, chacun est réputé, à l’égard des tiers, avoir le pouvoir de faire les actes d’administration.",
+    "Pour les actes de disposition, l’accord des deux parents est requis ; en cas de désaccord, recours au juge des tutelles.",
+    "Article 496 du Code civil : la gestion de ces actes doit être prudente et ne pas être contraire à l’intérêt de l’enfant.",
+    "Décret du 22 décembre 2008 - article 1 : les actes d’administration sont les actes d'exploitation ou de mise en valeur du patrimoine dénués de risque anormal.",
+    "Décret du 22 décembre 2008 - article 2 : les actes de disposition engagent le patrimoine pour le présent ou pour l'avenir par une modification importante.",
+    "Article 387-2 du Code civil : interdit aux parents d’accomplir des actes qui réalisent un appauvrissement du patrimoine du mineur."
+  ],
+  "Analyse": [
+    "La mère de l’enfant, qui exerce conjointement avec le père l’autorité parentale, souhaite vendre un bien appartenant à l’enfant acquis lors d’une succession.",
+    "Cet acte est un acte de disposition, car il engage le patrimoine de l’enfant et le modifie considérablement.",
+    "Un désaccord persiste entre les deux représentants légaux, donc la mère doit avoir l’accord du père pour modifier le patrimoine de l’enfant.",
+    "Ils devront effectuer un recours devant le juge des tutelles pour trancher.",
+    "L’acte modifie considérablement le patrimoine du mineur et pourrait être refusé par le juge en vertu de l’intérêt de l’enfant."
+  ],
+  "Solution": "Il s’agit d’un acte de disposition et, en cas de désaccord, un recours devant le juge des tutelles est nécessaire. La mère sera déboutée de sa demande car l’acte porte atteinte au patrimoine de l’enfant et ne pourra donc pas être passé."
+}

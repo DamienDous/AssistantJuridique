@@ -1,0 +1,19 @@
+{
+  "Faits": [
+    "Marie a prêté 50 000 euros à son frère Henri.",
+    "Il n'y a pas d'écrit formel pour établir le prêt, seulement un échange verbal entre les deux.",
+    "Henri a écrit un SMS à Marie pour la remercier de lui avoir prêté la somme de 50 000 euros."
+  ],
+  "Problématique": "Comment la demanderesse peut-elle déterminer la charge de la preuve et établir la preuve du prêt à son frère, notamment en l'absence d'écrit formel?",
+  "Règles": [
+    "L'article 1353 du Code civil dispose que celui qui réclame l'exécution d'une obligation doit la prouver.",
+    "L'article 1892 du Code civil précise que pour le contrat de prêt, l'emprunteur doit restituer la chose prêtée.",
+    "L'article 1359 du Code civil dispose que la preuve d'un acte juridique doit être réalisée par écrit si la somme excède 1500 euros, mais des exceptions existent selon l'article 1360."
+  ],
+  "Analyse": [
+    "Le prêteur, en l'occurrence Marie, doit prouver qu'elle a remis la somme de 50 000 euros et que cette remise a bien été faite à titre de prêt.",
+    "Bien que l'absence d'écrit puisse poser problème, l'existence de liens de parenté (entre Marie et Henri) peut justifier une impossibilité morale d'établir un écrit.",
+    "Le SMS envoyé par Henri dans lequel il remercie Marie de lui avoir prêté la somme de 50 000 euros constitue un commencement de preuve par écrit."
+  ],
+  "Solution": "La demanderesse, Marie, peut prouver le prêt par tous moyens, y compris en utilisant le SMS comme un commencement de preuve. La charge de la preuve incombe à la demanderesse et elle peut prouver l'existence du prêt malgré l'absence d'écrit, en raison de l'impossibilité morale d'établir un écrit en raison du lien familial."
+}

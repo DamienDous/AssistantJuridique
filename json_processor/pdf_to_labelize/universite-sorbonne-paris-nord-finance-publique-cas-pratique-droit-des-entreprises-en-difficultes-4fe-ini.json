@@ -1,0 +1,38 @@
+{
+  "Faits": [
+    "M. SIPHON exerce la profession de plombier depuis 2004.",
+    "M. SIPHON et Mme ASSO ont créé la société par actions simplifiée COOK en 2012.",
+    "Les bénéfices de la SAS COOK sont faibles, donc M. SIPHON et Mme ASSO créent une SARL, ELME, en 2014.",
+    "Ils ont contracté un prêt de 40 000 € auprès de la Banque CDN pour financer l’activité de la SARL ELME.",
+    "L’activité de la SARL ELME a commencé à bien se développer, mais a chuté en mai 2019 en raison d’une concurrence accrue.",
+    "La SARL ELME a des difficultés à rembourser l'emprunt de 40 000 € et a demandé un financement supplémentaire de 170 000 €.",
+    "La SARL ELME consent une hypothèque et un gage pour obtenir le financement nécessaire de la Banque CDN.",
+    "En décembre 2020, la SARL ELME est mise en liquidation judiciaire.",
+    "Les stocks de la SARL ELME sont faibles et certains matériels ont été vendus à bas prix pour rembourser une partie de la dette.",
+    "En septembre 2021, la SARL ELME vend pour 14 000 € de matériel électroménager à un restaurateur, qui a depuis été mis en liquidation judiciaire."
+  ],
+  "Problématique": [
+    "Pourquoi la SARL ELME a-t-elle fait l'objet d'un jugement de liquidation judiciaire ?",
+    "Quelle est la procédure de liquidation judiciaire et ses modalités ?",
+    "Quel rôle aurait joué un liquidateur judiciaire dans la procédure affectant la SARL ELME ?",
+    "Que devrait faire M. DIJIE, directeur juridique du CDN, pour que la banque ait une chance d’être payée ?"
+  ],
+  "Règles": [
+    "Article L. 620-1 du Code de commerce : La liquidation judiciaire intervient lorsque l'entreprise est en cessation de paiements et que son redressement est manifestement impossible.",
+    "La procédure de liquidation judiciaire est régie par le Code de commerce et nécessite la désignation d'un liquidateur judiciaire.",
+    "Le liquidateur judiciaire doit vendre les actifs de l'entreprise, répartir les fonds entre les créanciers et procéder à la clôture de la liquidation.",
+    "Le Code de commerce précise que le créancier peut être désigné en qualité de caution solidaire ou demander des garanties."
+  ],
+  "Analyse": [
+    "La SARL ELME a été mise en liquidation judiciaire car elle n’a pas pu honorer ses dettes, en particulier l'emprunt de 40 000 €, en raison de mauvaises performances économiques et d'une concurrence accrue.",
+    "La vente de matériel à bas prix pour rembourser les dettes, ainsi que les faibles stocks, montrent que la société était en difficulté pour honorer ses engagements.",
+    "Le liquidateur judiciaire, une fois nommé, devrait prendre en charge la vente des actifs restants, notamment les stocks de matériel, et les répartir entre les créanciers en fonction de la priorité des créances.",
+    "Le rôle de M. DIJIE, directeur juridique du CDN, serait de s'assurer que la banque puisse récupérer une partie de son argent, probablement en réclamant un paiement des créances dans le cadre de la procédure de liquidation ou en cherchant une solution alternative de remboursement."
+  ],
+  "Solution": [
+    "La SARL ELME a fait l'objet d'une liquidation judiciaire en raison de sa cessation de paiements et de l’impossibilité de redresser l'entreprise.",
+    "La procédure de liquidation judiciaire consiste en la vente des actifs, la répartition des fonds entre les créanciers et la clôture de la procédure.",
+    "En tant que liquidateur judiciaire, il aurait fallu gérer la liquidation des actifs, procéder à la vente de l'électroménager et distribuer les fonds aux créanciers.",
+    "M. DIJIE doit probablement se tourner vers le liquidateur judiciaire pour voir comment récupérer une partie des créances, notamment par la vente des actifs de la SARL ELME."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "Faits": [
+    "Monsieur Lacaution vient vous voir et veut avoir votre avis sur un certain nombre de cautionnements qu’il a contractés.",
+    "Tous les actes de cautionnement ont été signés pour garantir les dettes de la société Ledébiteur envers la banque Lecréancier.",
+    "La société Ledébiteur a été défaillante pour presque toutes les dettes pour lesquelles M. Lacaution était porteur de caution.",
+    "Le 1er février 2022, M. Lacaution s’engage, à hauteur de 500 euros, à payer une dette de la société Ledébiteur envers la banque Lecréancier d’un montant de 500 euros, si la société est défaillante.",
+    "Cette dette est arrivée à échéance, et la société Ledébiteur a été défaillante.",
+    "Vous apprenez que la société Ledébiteur a également une créance de 500 euros envers la banque Lecréancier, qui est également arrivée à échéance."
+  ],
+  "Problématique": "Quel conseil pouvez-vous donner à M. Lacaution pour échapper aux éventuelles poursuites de la Banque Lecréancier ? Peut-il échapper aux poursuites de la banque ?",
+  "Règles": [
+    "Réforme de l'ordonnance du 15 septembre 2021 qui vaut pour les contrats conclus après le 1er janvier 2022.",
+    "Application des articles 2288 à 2322 du Code civil après réforme.",
+    "Le cautionnement commercial est un cautionnement par accessoire et par voie objective, et la caution est présumée solidaire.",
+    "La caution n'a pas le bénéfice de la discussion et des divisions.",
+    "Article 2299 du Code civil qui prévoit une obligation de mise en garde pour la caution."
+  ],
+  "Analyse": [
+    "Le cautionnement est de 500 euros, mais la société Ledébiteur a une autre dette auprès de la même banque pour le même montant.",
+    "M. Lacaution pourrait invoquer le manquement à l’obligation de mise en garde prévue par l'article 2299 du Code civil, car la banque a prêté une même somme d’argent au même débiteur, ce qui constitue une information déterminante pour la caution."
+  ],
+  "Solution": "M. Lacaution peut invoquer le manquement à l’obligation de mise en garde par la banque en vertu de l'article 2299 du Code civil pour tenter d’échapper aux poursuites. Il pourrait être utile de vérifier si la banque a respecté ses obligations en matière de mise en garde avant de pouvoir engager une action juridique."
+}

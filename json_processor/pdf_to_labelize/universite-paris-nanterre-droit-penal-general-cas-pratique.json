@@ -1,0 +1,28 @@
+{
+  "Faits": [
+    "Bob, qui participait à des activités illégales pour arrondir ses fins de mois, a été dénoncé et arrêté en 2020.",
+    "Son procès aura lieu en 2021.",
+    "Une loi le concernant va être modifiée en 2021, modifiant ainsi les peines qu’il encourt.",
+    "Les peines encourues par la nouvelle loi sont plus lourdes que la précédente.",
+    "Bob a commis l’infraction avant la promulgation de la loi.",
+    "Bob est parti en vacances en Thaïlande avec deux de ses amis.",
+    "Lors d'une dispute entre les deux amis de Bob, l’un d'entre eux a frappé l’autre au visage.",
+    "Une jeune fille thaïlandaise a porté plainte contre Bob, l'accusant d'agression sexuelle.",
+    "Les deux amis de Bob qui se sont battus possèdent la nationalité française."
+  ],
+  "Problématique": "Si la loi est promulguée en début d'année 2021, s'appliquera-t-elle au cas de Bob ? Les infractions ayant été commises par un Français à l'étranger, est-ce la loi française ou étrangère qui s’appliquera aux espèces ?",
+  "Règles": [
+    "Article 112-1 : « Sont seuls punissables les faits constitutifs d'une infraction à la date à laquelle ils ont été commis. Peuvent seules être prononcées les peines légalement applicables à la même date. »",
+    "Les lois pénales dites plus sévères (in pejus) ne sont pas rétroactives.",
+    "Article 113-6 alinéas 1 et 2 : « La loi pénale française est applicable à tout crime commis par un Français hors du territoire de la République. Elle est applicable aux délits commis par des Français hors du territoire de la République si les faits sont punis par la législation du pays où ils ont été commis (...) ».",
+    "En France, une agression sexuelle est punie de cinq ans d’emprisonnement et de 75.000€ d’amende, selon l’article 222-27 du Code pénal.",
+    "Les coups et blessures volontaires sont passibles de 750€ d'amende si la victime n'a aucune blessure ou lésion, 1.500€ d'amende si la victime est dans l’incapacité de travailler pour une durée inférieure à huit jours, selon les articles 222-7 à 222-16-3."
+  ],
+  "Analyse": [
+    "En l'espèce, les peines encourues par la nouvelle loi sont plus lourdes que la précédente, par conséquent la nouvelle loi n’est pas rétroactive.",
+    "Bob a commis l’infraction avant la promulgation de la loi. C’est pourquoi cette loi ne peut être appliquée à son cas.",
+    "On sait que les agressions sexuelles sont punies également en Thaïlande. Par conséquent, la législation française s'applique au cas d’agression sexuelle dont Bob est accusé.",
+    "Les deux amis de Bob qui se sont battus possèdent la nationalité française. C’est donc la législation française qui s'appliquera à leur cas, en vertu du principe de personnalité passive."
+  ],
+  "Solution": "Pour son infraction, Bob risque donc jusqu'à 3 ans d'emprisonnement et 75.000€ d’amende. Bob sera jugé en France pour agression sexuelle et risque jusqu'à cinq ans d’emprisonnement et 75.000€ d'amende. Son ami qui a agressé l'autre individu sera également jugé en France et risque jusqu'à 1.500€ d’amende selon la gravité des blessures de la victime."
+}

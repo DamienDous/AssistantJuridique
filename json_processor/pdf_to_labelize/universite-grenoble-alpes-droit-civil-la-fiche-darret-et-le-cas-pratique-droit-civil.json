@@ -1,0 +1,33 @@
+{
+  "Faits": [
+    "Cour de cassation 28 mai 1991 : Conflit : M. Z = demandeur Sté édition Y = défenseur.",
+    "Sté édition a publié le 9 septembre 1987 que M. Z ne payait pas ses impôts alors qu'il possède beaucoup d'argent, elle indique aussi le montant de ses déclarations fiscales.",
+    "TI : atteinte à la vie privée de M. Z, Sté édition Y condamné à verser 8000 F de dommages et intérêts.",
+    "Cour de cassation contre car vie privée de chacun pas atteinte par la publication de renseignement d'ordres purement patrimoniaux.",
+    "Renvoie vers la Cour d'appel de Versailles.",
+    "Il s'agit d'un arrêt rendu par la 1er chambre civile de la cour de cassation en date du , statuant en matière d'atteinte au respect de la vie privée d'autrui et opposant M. Z à M.Y.",
+    "Divulgation d'informations relatives à l'état de fortune d'une personne.",
+    "Procédure : 1) assignation en justice de la société d'édition par M.Z.",
+    "2) La cour d'appel Paris, arrêt 19/06/1989.",
+    "Un pourvoi est formé par la société d'édition.",
+    "Cour de cassation 27 novembre 1991 : Demandeur : M. Jean-Pierre FERRAND défendeur : SA librairie LAROUSSE.",
+    "SA librairie LAROUSSE licencie M. FERRAND car il n'a pas été présent le 8 mars 1986 sur son lieu de travail lors du transfert d'un nouvel ordinateur.",
+    "Raisons : sa fille malade et l'employeur lui aurait dit que c'était obligatoire seulement la veille.",
+    "L'employeur l'avait prévenu à l'avance.",
+    "La cour de cassation rejette l'appel car la demande de l'employeur entrait dans le cadre des obligations professionnelles.",
+    "Exercice : Mineure : contrat conclu pour 3 ans mais loi nouvelle entrée en vigueur un an plus tard interdit la fabrication et la commercialisation des produits pour des raisons de santé publique.",
+    "Le fournisseur (Pulco) poursuit les livraisons 2 mois après l'entrée en vigueur de la loi nouvelle.",
+    "La société Malabar s'interroge alors sur le point de savoir si elle doit payer ses factures postérieures mais aussi sur les factures antérieures qui n'avaient pas encore été réglées."
+  ],
+  "Problématique": "Y a-t-il atteinte à la vie privée de M.Z ?",
+  "Règles": [
+    "La vie privée de chacun n'est pas atteinte par la publication de renseignements d'ordres purement patrimoniaux.",
+    "La demande de l'employeur entrait dans le cadre des obligations professionnelles donc pas d'atteinte à la vie privée de celui-ci.",
+    "La loi nouvelle a été adoptée pour des raisons de santé publique, elle entre donc dans la catégorie des lois d'ordre public."
+  ],
+  "Analyse": [
+    "Conclusion : s'agissant d'une situation contractuelle, la loi nouvelle ne s'applique pas contrairement au principe, ce contrat devrait donc se poursuivre jusqu'à son échéance.",
+    "Cependant, la loi nouvelle a été adoptée pour des raisons de santé publique, elle entre donc dans la catégorie des lois d'ordre publique, elle s'appliquera donc au contrat d'approvisionnement en cours."
+  ],
+  "Solution": "Les factures correspondant aux livraisons postérieures sont donc sans objet et la loi nouvelle ne rétroagissant pas, celles qui sont antérieures demeurent valables."
+}

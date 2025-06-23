@@ -1,0 +1,19 @@
+{
+  "Faits": [
+    "Monsieur Dubois doit renouveler le matériel informatique de son entreprise et a pris contact avec différents vendeurs.",
+    "La société X lui a fait une proposition pour vendre 15 appareils à 900 euros pièce.",
+    "Monsieur Dubois a accepté la proposition de la société X sous la condition qu'ils lui consentent un rabais de 100 euros par appareil et qu'il ne trouve pas moins cher ailleurs dans le délai d'une semaine.",
+    "La société X a accepté la proposition, et Monsieur Dubois n'a pas trouvé d'offre plus intéressante.",
+    "Monsieur Dubois craint de ne plus disposer de locaux pour installer son entreprise car son propriétaire refuse de lui renouveler son bail commercial."
+  ],
+  "Problématique": "Monsieur Dubois peut-il être contraint par la société X de se porter acquéreur des ordinateurs, malgré son problème avec le renouvellement de son bail commercial ?",
+  "Règles": [
+    "Le contrat de vente engage les parties à respecter les termes de l'accord, et une fois que l'offre est acceptée, celle-ci devient contraignante.",
+    "Une condition suspensive, comme le fait de ne pas trouver une meilleure offre, peut modifier l'obligation d'exécution du contrat."
+  ],
+  "Analyse": [
+    "Monsieur Dubois a accepté l'offre de la société X sous certaines conditions. Cependant, la question de savoir s'il peut se rétracter dépend de l'application ou non des conditions suspensives qu'il a posées.",
+    "Le problème du bail commercial n'a pas de lien direct avec l'exécution du contrat de vente, mais cela pourrait influencer la capacité de Monsieur Dubois à honorer son engagement."
+  ],
+  "Solution": "Monsieur Dubois pourrait être contraint par la société X de se porter acquéreur des ordinateurs si les conditions qu'il a posées sont considérées comme remplies. Cependant, il pourrait explorer des options de révision du contrat en fonction de sa situation avec son bail commercial."
+}

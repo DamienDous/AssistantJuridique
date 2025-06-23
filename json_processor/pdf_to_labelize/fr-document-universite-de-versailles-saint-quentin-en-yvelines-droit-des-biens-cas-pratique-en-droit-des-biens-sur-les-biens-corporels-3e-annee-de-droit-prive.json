@@ -1,0 +1,20 @@
+{
+  "Faits": [
+    "Marc acheta une grande maison à La Rochelle.",
+    "Marc entreprit de faire des travaux pour agrandir sa chambre.",
+    "Marc engagea une entreprise réputée pour effectuer les travaux.",
+    "Lors des travaux, un ouvrier découvrit un sac rempli de pièces d'or en abattant une cloison.",
+    "Marc revendiqua immédiatement cette trouvaille.",
+    "Le maçon prétendit que les pièces d'or lui appartenaient."
+  ],
+  "Problématique": "À qui appartient le trésor découvert dans la maison ? Marc, en tant que propriétaire de la maison, ou l'ouvrier, qui a trouvé le sac pendant les travaux ?",
+  "Règles": [
+    "Article 716 al. 1er : la propriété d'un trésor appartient à celui qui le trouve dans son propre fond.",
+    "Si le fond appartient à autrui, le trésor est partagé entre le propriétaire du fond et celui qui l'a trouvé."
+  ],
+  "Analyse": [
+    "Le sac de pièces d'or a été trouvé dans la maison de Marc, ce qui pourrait justifier que la propriété du trésor lui revienne.",
+    "Cependant, l'ouvrier qui a découvert le trésor pendant les travaux pourrait revendiquer une part en vertu de l'article 716, en tant qu'inventeur du trésor."
+  ],
+  "Solution": "Le trésor sera donné par moitié au propriétaire de la maison, Marc, par voie d’accession, et à l'ouvrier, par voie d’occupation, selon les principes énoncés dans l'article 716 du Code civil."
+}

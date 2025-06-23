@@ -1,0 +1,27 @@
+{
+  "Faits": [
+    "M. L. Barter vous présente le contrat suivant et vous indique qu’un scanner récemment livré par PHARMACOM à BIOTECMA en vertu de ce contrat est défectueux.",
+    "PHARMACOM propose le remplacement, mais pas avant un délai de six mois.",
+    "L. Barter vous demande s’il peut exiger que PHARMACOM envoie des techniciens pour tenter de réparer le scanner.",
+    "Article 9 du contrat - prorogation de for > élection du droit suisse - contrat soumis au droit Suisse.",
+    "Le préambule du contrat parle de distribution de produits et d’exclusivité en faveur de PHARMACOM.",
+    "Il n’y a pas d’indication de droit à la réparation dans le contrat.",
+    "C’est un contrat international."
+  ],
+  "Problématique": "M. Barter peut-il exiger que PHARMACOM envoie des techniciens pour réparer le scanner défectueux livré à BIOTECMA ?",
+  "Règles": [
+    "Article 19 du Code des obligations suisse (CO) : principe de la liberté contractuelle et lex contractus.",
+    "Article 18 CO : interprétation selon la volonté réelle des parties.",
+    "Articles 184 ss. CO : régime de la vente – pas de droit explicite à la réparation matérielle.",
+    "Article 1 al.2 du Code civil suisse : le juge comble les lacunes du droit avec la jurisprudence et la doctrine.",
+    "Article 46 de la Convention de Vienne (CVIN) : prévoit le droit à la réparation si raisonnable, sauf exclusion contractuelle."
+  ],
+  "Analyse": [
+    "Le contrat ne correspond pas typiquement à un contrat de vente mais à un contrat de distribution exclusive, donc contrat innommé soumis aux règles générales.",
+    "Pas de clause explicite sur la réparation matérielle dans le contrat.",
+    "En droit suisse, il n’y a pas de droit automatique à la réparation matérielle pour les choses défectueuses dans un contrat de vente ou de distribution.",
+    "Selon la CVIN, applicable aux contrats internationaux de vente, l’article 46 prévoit un droit à réparation sous conditions.",
+    "Le juge peut créer une règle jurisprudentielle en cas de lacune, mais en l’espèce il faut se référer à la CVIN si applicable."
+  ],
+  "Solution": "Le droit à la réparation peut être fondé sur l’article 46 de la Convention de Vienne (CVIN), sous réserve qu’il n’ait pas été exclu dans les conditions générales. À défaut, en droit suisse, aucune disposition ne prévoit un tel droit expressément pour ce type de contrat, sauf si le juge comble la lacune."
+}

@@ -1,0 +1,19 @@
+{
+  "Faits": [
+    "Des personnes se réunissent bruyamment et consomment de l'alcool dans le centre-ville de la commune.",
+    "Le maire prend un arrêté interdisant les regroupements de plus de trois personnes sur la voie publique, ainsi que la consommation d'alcool.",
+    "Le maire a pris cette décision pour une durée de quatre mois, couvrant toute la commune."
+  ],
+  "Problématique": "La question juridique porte sur la légalité de l'arrêté pris par le maire concernant l'interdiction des regroupements de personnes et de la consommation d'alcool. Est-ce que l'arrêté respecte le principe de légalité et est-il proportionné à la nécessité de maintenir l'ordre public ?",
+  "Règles": [
+    "Article L. 131-2 du Code des communes : La police municipale a pour objectif d'assurer le bon ordre, la sûreté, la sécurité et la salubrité publique.",
+    "Article L. 2212-2 du Code général des collectivités territoriales : Le maire dispose d'un pouvoir de police général pour garantir l'ordre public.",
+    "Principe de légalité en droit administratif : Toute action administrative doit respecter le principe de légalité et être justifiée par une nécessité. L'exercice du pouvoir de police est soumis au contrôle du juge, notamment le contrôle de proportionnalité."
+  ],
+  "Analyse": [
+    "Le maire a la compétence pour adopter des arrêtés de police, mais la légalité de ces mesures est subordonnée à leur nécessité et proportionnalité.",
+    "L'arrêté est trop large, car il s'applique à toute la commune et à toutes les heures de la journée, alors que les incivilités étaient localisées et à des horaires spécifiques.",
+    "L'arrêté manque de précision, notamment concernant la définition des 'éclats de voix' et l'interdiction générale de la consommation d'alcool."
+  ],
+  "Solution": "L'arrêté du maire risque d'être considéré comme illégal en raison de son caractère général et absolu, qui porte atteinte de manière disproportionnée aux libertés publiques. Il aurait été plus légitime de restreindre la mesure à une zone précise et à des horaires spécifiques, ou d'envoyer des agents de l'ordre public pour prévenir les incivilités. Le juge pourrait annuler l'arrêté en se basant sur le contrôle de proportionnalité."
+}

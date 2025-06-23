@@ -1,0 +1,20 @@
+{
+  "Faits": [
+    "Madame Dupont et Madame Leblanc ayant eu recours à une PMA ont eu des jumeaux, Marcel et Alphonse.",
+    "Elles souhaiteraient attribuer comme nom de famille Dupont à l’un et Leblanc à l’autre.",
+    "Marcel est décédé avant que l’une des mères (ou un tiers) ait déclaré sa naissance à l’officier d’état civil."
+  ],
+  "Problématique": "Est-il possible de donner un nom de famille différent à ses enfants ? Un enfant décédé après être né vivant et viable avant d’avoir été déclaré aura-t-il le droit à une reconnaissance officielle ?",
+  "Règles": [
+    "Article 311-21 du Code civil : la filiation d'un enfant est établie à l'égard de ses deux parents au plus tard le jour de la déclaration de sa naissance, ces derniers choisissent le nom de famille qui lui est dévolu : soit le nom du père, soit le nom de la mère, soit leurs deux noms accolés dans l'ordre choisi par eux dans la limite d'un nom de famille pour chacun d'eux.",
+    "En cas de désaccord entre les parents, signalé par l'un d'eux à l'officier de l'état civil, l'enfant prend leurs deux noms, dans la limite du premier nom de famille pour chacun d'eux, accolés selon l'ordre alphabétique.",
+    "Article 342-12 : lorsque la filiation est établie dans les conditions énoncées, les femmes choisissent le nom de l’une d’elles, soit leurs deux noms accolés dans l’ordre choisi ou alphabétique en cas de désaccord dans la limite d’un nom de famille pour chacune d’elles. Le nom précédemment dévolu ou choisi vaut pour les autres enfants communs.",
+    "Article 79-1 alinéa 1 : si l’enfant décède avant que la naissance ne soit déclarée, l’officier d’état civil produit un acte de naissance et un acte de décès après présentation d’un certificat médical indiquant que l’enfant est né vivant et viable."
+  ],
+  "Analyse": [
+    "Selon les articles 311-21 et 342-12, les épouses Dupont et Leblanc ont la possibilité d’attribuer comme nom de famille Dupont, Leblanc, Dupont-Leblanc ou Leblanc-Dupont.",
+    "Selon l’alinéa 3 de l’article 342-12, elles sont dans l’obligation de donner le même nom de famille à leurs enfants.",
+    "Selon l’article 79-1, un enfant né vivant et viable, même s’il décède avant d’avoir été déclaré, peut faire l’objet d’un acte de naissance et d’un acte de décès officiels."
+  ],
+  "Solution": "Il est impossible de donner un nom de famille différent à ses enfants. Un enfant décédé après être né vivant et viable avant d’avoir été déclaré aura le droit à une reconnaissance officielle selon l’alinéa 1 de l’article 79-1."
+}

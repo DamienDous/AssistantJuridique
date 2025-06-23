@@ -1,0 +1,27 @@
+{
+  "Faits": [
+    "Une directive législative prévoit que l'information médicale est obligatoire pour tous les patients, sauf en cas d'état d’inconscience.",
+    "Un patient peut désigner une personne de confiance, mais cela nécessite d’être majeur.",
+    "Un mineur ne peut pas désigner une personne de confiance, sauf dans le cadre de l'IVG.",
+    "La personne de confiance peut être révoquée à tout moment par le patient.",
+    "La personne de confiance n'est pas obligée d’être un membre de la famille du patient.",
+    "Un patient majeur incapable (sous tutelle) peut désigner une personne de confiance avant la mise sous tutelle.",
+    "Le patient sous curatelle est considéré apte à désigner une personne de confiance.",
+    "Dans le cadre d’une prise en charge d’urgence, le consentement des parents est nécessaire pour un mineur, mais il existe des exceptions lorsque le mineur s'oppose à la transmission d’informations à ses parents.",
+    "Le médecin doit respecter le secret médical et peut être amené à ne pas transmettre d'informations médicales aux parents si le mineur s'y oppose.",
+    "Le problème lié à l’envoi des informations médicales aux parents sur la carte vitale ou les relevés d’assurance maladie d’un adolescent."
+  ],
+  "Problématique": "Un adolescent peut-il refuser que ses parents soient informés de son état de santé ? Comment le secret médical est-il respecté lorsqu’un mineur se trouve dans un tel cas ? Peut-il exister des situations où des informations doivent être délivrées à un employeur ou à d’autres parties ?",
+  "Règles": [
+    "L’article 9 du Code civil prévoit que le consentement est obligatoire avant de fournir des informations médicales.",
+    "La loi précise que le mineur de plus de 16 ans peut être considéré comme ayant une capacité de discernement et que le consentement des parents n’est pas toujours requis.",
+    "Le secret médical s'applique aux informations concernant un patient et l'accès à ces informations est limité aux personnes autorisées par le patient ou par la loi.",
+    "Un médecin ne peut délivrer des informations médicales sans le consentement explicite du patient, sauf dans certains cas spécifiques entre praticiens."
+  ],
+  "Analyse": [
+    "Le patient mineur a la possibilité de refuser de transmettre ses informations médicales à ses parents, surtout lorsqu’il est en âge de discernement.",
+    "Même si un adolescent est inscrit sur la carte vitale de ses parents, l’information médicale peut être protégée par le secret médical, même si la carte vitale envoie des relevés à l’adresse des parents.",
+    "Dans certains cas, comme avec un employeur souhaitant savoir l’état de santé de son salarié, le secret médical doit être respecté, mais peut entraîner des situations où l’information est partagée en présence du patient."
+  ],
+  "Solution": "Le mineur peut refuser que ses parents soient informés, et si le médecin respecte ce choix, il doit s’assurer que l’information partagée reste dans les limites du secret médical. En ce qui concerne l’employeur, aucune information médicale ne doit être transmise sans le consentement explicite du patient. Les professionnels de santé doivent garantir que toutes les informations partagées sont limitées aux informations générales et nécessaires."
+}

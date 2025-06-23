@@ -1,0 +1,33 @@
+{
+  "Faits": [
+    "C loue un appartement aux propriétaires A.A et B.A.",
+    "Les propriétaires ont décidé d'installer une caméra de surveillance et en ont informé leurs locataires.",
+    "C a saisi le tribunal compétent de Bâle, qui a partiellement accepté sa demande.",
+    "Les propriétaires ont fait appel.",
+    "Le dispositif de vidéosurveillance respecte les principes du traitement des données, selon l'article 13 de la LPD."
+  ],
+  "Problématique": [
+    "Le propriétaire doit-il respecter les règles générales de traitement des données personnelles ?",
+    "Le dispositif de vidéosurveillance mis en place par les propriétaires est-il légitime ?",
+    "La confidentialité des informations détenues par le travailleur peut-elle être levée en cas de non-respect des règles ?",
+    "Le travailleur est-il tenu à la confidentialité même après la fin de son contrat ?"
+  ],
+  "Règles": [
+    "Article 4 de la LPD : Les règles générales du traitement des données s'appliquent au propriétaire.",
+    "Article 13 de la LPD : La proportionnalité dans l'application des mesures de surveillance.",
+    "Article 5 II de la Constitution suisse : Principe de proportionnalité applicable au traitement des données.",
+    "Article 321a alinéa 4 du Code des obligations suisse (CO) : Le devoir de confidentialité persiste même après la fin du contrat.",
+    "Le principe de proportionnalité doit être respecté dans la divulgation d'informations par le travailleur."
+  ],
+  "Analyse": [
+    "La vidéosurveillance, dans ce cas, est légitime car elle respecte les principes de proportionnalité selon la LPD et la Constitution suisse.",
+    "Le travailleur a une obligation de confidentialité qui va au-delà de la fin de son contrat, ce qui peut restreindre sa liberté de divulgation.",
+    "La demanderesse n'a pas respecté le principe de proportionnalité en divulguant les informations avant de signaler l'incident, violant ainsi son obligation de confidentialité."
+  ],
+  "Solution": [
+    "Le propriétaire doit respecter les règles du traitement des données personnelles, conformément à la LPD et aux principes de proportionnalité.",
+    "La vidéosurveillance mise en place est légitime car elle respecte les principes de la LPD et de la Constitution suisse.",
+    "Le travailleur est tenu de respecter son devoir de confidentialité même après la fin de son contrat.",
+    "Le travailleur peut rompre le secret seulement s'il respecte le principe de proportionnalité, ce qui n'est pas le cas dans l'exemple de la demanderesse."
+  ]
+}

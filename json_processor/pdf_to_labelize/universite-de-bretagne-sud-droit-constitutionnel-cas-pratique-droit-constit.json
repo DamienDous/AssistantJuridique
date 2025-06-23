@@ -1,0 +1,30 @@
+{
+  "Faits": [
+    "L'initiative législative appartient au parlement et au Premier ministre.",
+    "Lorsque c'est le Premier ministre qui est à l'initiative de la loi on parle de projet de loi.",
+    "Lorsque c'est le parlement qui est à l'initiative de la loi on parle de proposition de loi.",
+    "Le Conseil des ministres est présidé par le président de la République et réunit le Premier ministre et tous les ministres.",
+    "Le projet de loi est obligatoirement déposé sur le bureau du Sénat.",
+    "La navette parlementaire permet aux deux assemblées d’être en accord avec les dispositions du projet de loi.",
+    "Le président peut demander une nouvelle délibération ou saisir le Conseil constitutionnel pour freiner la promulgation d'une loi.",
+    "Depuis une révision constitutionnelle, les citoyens peuvent contester la constitutionnalité d'une loi promulguée à l'occasion d'un procès.",
+    "Pour abroger un texte, il faut le faire avec un autre texte qui ait au moins la même valeur législative.",
+    "Ils peuvent contester sur le fondement de la Charte de l’environnement de 2004 par une QPC devant le juge d’instruction."
+  ],
+  "Problématique": "Une loi nouvelle peut-elle être adoptée contre la volonté du Sénat ? Le président peut-il s’y opposer ? Quels sont les recours contre une loi déjà en vigueur ?",
+  "Règles": [
+    "Le Premier ministre peut engager la responsabilité du Gouvernement sur le vote d’un projet de loi de finances ou de financement de la sécurité sociale.",
+    "Il peut recourir à cette procédure pour un autre projet ou proposition de loi par session, après délibération du Conseil des ministres.",
+    "Les parlements de l’opposition peuvent contester une loi devant un juge par voie de saisine constitutionnelle.",
+    "Les juges du fond peuvent saisir la Cour de cassation ou le Conseil d'État qui peuvent à leur tour saisir le Conseil constitutionnel.",
+    "Une loi peut être abrogée uniquement par un texte de même valeur juridique.",
+    "La question prioritaire de constitutionnalité permet un contrôle de constitutionnalité a posteriori."
+  ],
+  "Analyse": [
+    "Le président dirige le pouvoir exécutif via le Conseil des ministres, ce qui lui permet de contrôler la politique du Gouvernement et de s’opposer à certaines décisions.",
+    "Le gouvernement ne peut pas faire adopter une loi contre la volonté du Sénat sans passer par la navette parlementaire.",
+    "Les cours suprêmes peuvent être saisies pour vérifier la constitutionnalité des lois, même après promulgation.",
+    "Les citoyens peuvent invoquer une QPC pour contester une loi durant un procès en lien avec la Charte de l’environnement."
+  ],
+  "Solution": "Une loi ne peut être imposée sans l’accord des deux chambres sauf cas particulier d’adoption définitive par l’Assemblée nationale après échec de la navette. Un contrôle de constitutionnalité peut être exercé a posteriori par voie de QPC, ce qui permet aux citoyens et parlementaires de contester la loi."
+}

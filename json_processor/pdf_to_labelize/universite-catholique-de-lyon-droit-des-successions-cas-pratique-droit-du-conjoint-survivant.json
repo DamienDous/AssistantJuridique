@@ -1,0 +1,21 @@
+{
+  "Faits": [
+    "Le défunt laisse deux enfants et son conjoint survivant.",
+    "Sa succession se compose d’un appartement évalué à 150.000 euros, d’un terrain évalué à 90.000 euros et de comptes bancaires évalués à 50.000 euros qu’il a légué à un ami."
+  ],
+  "Problématique": "Déterminer sur quelle valeur s'exercent les droits du conjoint survivant dans les cas suivants.",
+  "Règles": [
+    "Article 720 : ouverture de la succession au décès.",
+    "Article 757 : principes de la dévolution successorale par ordre et degrés.",
+    "Articles 735 et suivants : ordres d’héritiers.",
+    "Articles 725 + 732 : capacité des successibles et statut du conjoint.",
+    "Article 763 : droit temporaire au logement et droit viager du conjoint survivant.",
+    "Article 1527 : les avantages matrimoniaux ne sont pas des libéralités.",
+    "Article 922 : masse de calcul de la réserve héréditaire et de la quotité disponible."
+  ],
+  "Analyse": [
+    "1 => détermination de la masse de calcul : 240 000 donc droits thermique = 60 000 car 1/4 de la masse de calcul.",
+    "2 => masse d’exercice = masse de calcul (240 000) - réserve globale (193 000)."
+  ],
+  "Solution": "Ensuite on liquide les droits du conjoint survivant. Vocation du conjoint survivant en présence de descendants du défunt : Option légale : Aucun choix ouvert : - Usufruit total - 1/4 en pleine propriété - 1/4 en pleine propriété."
+}

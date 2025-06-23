@@ -1,0 +1,26 @@
+{
+  "Faits": [
+    "Claudine conduit régulièrement le camion poids lourd de son conjoint bien qu'elle ne soit pas titulaire du permis nécessaire.",
+    "Claudine a été arrêtée par la gendarmerie le 2 septembre 2024 pour conduite sans permis adéquat.",
+    "Le fait de conduire sans permis adéquat est puni d'un an d'emprisonnement et de 15 000 euros d'amende.",
+    "Une loi nouvelle entre en vigueur le 1er novembre 2024, augmentant les peines à un an d'emprisonnement et 25 000 euros d'amende."
+  ],
+  "Problématique": [
+    "Quelle peine Claudine risque-t-elle d’être condamnée à, suite à la nouvelle loi qui entre en vigueur après l'accident ?"
+  ],
+  "Règles": [
+    "En droit pénal, la loi applicable est celle en vigueur au moment de la commission de l'infraction, sauf si une loi nouvelle adoucit la peine.",
+    "Le principe de l'application de la loi dans le temps stipule que la loi pénale est appliquée de manière rétroactive en faveur de la personne poursuivie si elle est plus douce.",
+    "La loi pénale, plus sévère, n'est pas rétroactive sauf disposition contraire.",
+    "Dans le cas d’un accident, l’application d’une nouvelle loi ne s’applique que si elle est plus douce pour l’accusé."
+  ],
+  "Analyse": [
+    "Claudine, dont l'infraction a eu lieu avant l'entrée en vigueur de la nouvelle loi, risque la peine selon la législation en vigueur au moment de l’infraction, soit un an d'emprisonnement et 15 000 euros d'amende.",
+    "La nouvelle loi, qui augmente la peine, ne s'applique pas rétroactivement à Claudine car elle ne bénéficie pas d'une disposition plus douce.",
+    "Claudine pourra donc être condamnée selon la peine de la loi antérieure."
+  ],
+  "Solution": [
+    "Claudine risque la peine d’un an d'emprisonnement et 15 000 euros d’amende en vertu de la loi applicable au moment de l'infraction, soit la législation précédente.",
+    "La nouvelle loi n’aura pas d’effet rétroactif sur la condamnation de Claudine puisque celle-ci est plus sévère."
+  ]
+}

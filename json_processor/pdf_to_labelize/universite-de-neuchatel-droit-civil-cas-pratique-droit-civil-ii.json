@@ -1,0 +1,21 @@
+{
+  "Faits": [
+    "M. et Mme Simpson étaient conjoints de fait pendant 8 ans et ont eu deux enfants.",
+    "Le père a appris d’un tiers qu’il n’était pas le père biologique de l’enfant 2 lorsqu’il avait 8 ans.",
+    "Le nom du demandeur apparaît à l’acte de naissance des deux enfants.",
+    "Lors de la rupture, une convention intérimaire a été établie concernant la garde partagée, les droits d’accès et une pension alimentaire pour les deux enfants.",
+    "Mr a cessé de voir l’enfant après avoir appris qu’il n’était pas le père biologique et a entrepris des procédures pour un désaveu de la paternité."
+  ],
+  "Problématique": "Est-ce que la preuve biologique justifie d’enlever le lien de paternité ?",
+  "Règles": [
+    "Article 523 al. 1 C.c.Q. : L'acte de naissance.",
+    "Article 523 al. 2 et 524 C.c.Q. : La possession d’état.",
+    "Article 525 C.c.Q. : La présomption de paternité du mari.",
+    "Articles 52 à 529 C.c.Q. : La reconnaissance volontaire."
+  ],
+  "Analyse": [
+    "La possession d'état est définie comme la manière dont le père se comporte avec l'enfant, aux yeux de tous comme étant le père.",
+    "Le juge a déterminé qu'il y avait possession d'état, étant donné que le père s'était comporté comme un père pendant 8 ans et a conclu que le délai de 5 ans est suffisant pour déclarer la possession d'état."
+  ],
+  "Solution": "Le juge conclut que, puisque le nom du père est sur l'acte de naissance et qu'il y a possession d'état, l'acte de naissance est conforme à la possession d'état et il ne peut pas contester la paternité. Le père a un délai d'un an à compter de la présomption de paternité pour la contester, sauf si l'il n'a pas eu connaissance de la naissance, ce qui n'est pas le cas ici."
+}

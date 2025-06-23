@@ -1,0 +1,29 @@
+{
+  "Faits": [
+    "Le cas pratique présente des situations juridiques pour lesquelles il convient de répondre avec des questions juridiques.",
+    "M. Guerra, de nationalité espagnole, a volé dans le portefeuille d'un touriste français et a été condamné en Espagne.",
+    "M. Filou souhaite engager une procédure contre M. Guerra en France pour les mêmes faits.",
+    "Sébastien et Mathieu sont colocataires, et Mathieu a causé un incendie en oubliant le feu sous une casserole.",
+    "Le propriétaire refuse de réparer les dégâts du mur causés par l'incendie."
+  ],
+  "Problématique": [
+    "M. Filou peut-il engager une procédure contre M. Guerra en France alors qu'il a déjà été condamné en Espagne ?",
+    "Mathieu, locataire, peut-il engager la responsabilité du propriétaire de l’appartement pour l'incendie causé par négligence ?"
+  ],
+  "Règles": [
+    "L'article 113-7 du Code pénal stipule que la loi pénale française s'applique aux crimes et délits commis par un Français ou un étranger à l'extérieur, lorsque la victime est française.",
+    "L'article 113-9 du Code pénal précise qu'une personne ne peut pas être poursuivie en France si elle a déjà été jugée définitivement à l'étranger pour les mêmes faits.",
+    "L'article 1733 du Code civil établit que le locataire est responsable de l'incendie à moins qu'il ne prouve que l'incendie est dû à un cas fortuit, à la force majeure, ou à un vice de construction.",
+    "L'article 1734 du Code civil déclare que les locataires sont responsables de l'incendie proportionnellement à la partie de l'immeuble occupée, sauf s'ils peuvent prouver que l'incendie ne vient pas de chez eux."
+  ],
+  "Analyse": [
+    "Dans le cas de M. Guerra, la loi française permet de poursuivre un étranger ayant commis un délit en dehors du territoire, mais l'article 113-9 empêche une nouvelle poursuite si la personne a déjà été jugée pour les mêmes faits.",
+    "En l’espèce, M. Guerra a déjà purgé sa peine en Espagne et ne peut donc pas être poursuivi à nouveau en France.",
+    "Dans le cas de l'incendie causé par Mathieu, il est responsable selon l'article 1733, car l'incendie est directement lié à sa négligence.",
+    "Sébastien et Mathieu sont tous deux responsables de l'incendie puisqu'ils sont colocataires, conformément à l'article 1734."
+  ],
+  "Solution": [
+    "M. Filou ne peut pas engager de procédure en France contre M. Guerra, car ce dernier a déjà été jugé en Espagne pour les mêmes faits.",
+    "Mathieu et Sébastien doivent répondre de l'incendie, et le propriétaire a le droit de refuser la réparation des dégâts."
+  ]
+}

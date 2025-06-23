@@ -1,0 +1,19 @@
+{
+  "Faits": [
+    "Un cas de droit pénal est examiné, où des questions juridiques sur la loi pénale dans le temps, l'espace et les éléments constitutifs des infractions sont posées.",
+    "La loi pénale peut être rétroactive si elle intervient avant le jugement définitif.",
+    "Les différentes formes de conflits de qualifications (idéal, réel) sont abordées, ainsi que la tentative d'infraction et la question de la faute intentionnelle et non intentionnelle."
+  ],
+  "Problématique": "Le cas soulève des questions concernant la qualification des faits d'une infraction, la possibilité d'application de la loi en fonction de son entrée en vigueur, la tentative d'infraction, et la distinction entre faute intentionnelle et non intentionnelle dans le cadre de la responsabilité pénale.",
+  "Règles": [
+    "Article 121-1 du Code pénal : une infraction est définie par l'existence d'un acte contraire à la loi.",
+    "Article 121-4 du Code pénal : la tentative d'infraction peut être punissable selon le type d'infraction.",
+    "Article 132-2 et suivants du Code pénal : régit la pluralité des infractions et le cumul des peines, y compris l'exception des peines d'amende."
+  ],
+  "Analyse": [
+    "La question du droit pénal dans le temps est traitée à partir de l'entrée en vigueur de la loi, distinguant la rétroactivité de la loi lorsque celle-ci intervient avant le jugement définitif.",
+    "Le concept de tentative d'infraction est analysé en fonction de la nature de l'infraction, l'intention de l'auteur et l'effet de l'infraction manquée ou impossible.",
+    "Les conflits de qualifications sont examinés, et la manière dont le juge détermine la qualification la plus adaptée aux faits, que ce soit pour les qualifications incompatibles, alternatives ou redondantes, est discutée."
+  ],
+  "Solution": "Si une loi pénale est postérieure aux faits, elle ne peut pas s'appliquer rétroactivement sauf exceptions comme la dépénalisation ou abolition. En cas de tentative, les infractions seront jugées en fonction de l'intention irrévocable et des actes suffisamment proches de l'infraction. En matière de conflits de qualifications, la qualification la plus appropriée sera retenue et les peines se cumuleront dans la limite du maximum légal."
+}

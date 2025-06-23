@@ -1,0 +1,35 @@
+{
+  "Faits": [
+    "Jeanne, épouse de Lucas, a disparu après une baignade seule au large en été 2008, et ce malgré les recherches de la gendarmerie.",
+    "Le 03 mars 2022, un jugement déclaratif d’absence est prononcé par le tribunal judiciaire.",
+    "Lucas se remarie avec une autre femme après la déclaration d'absence de Jeanne.",
+    "Jeanne redonne finalement un signe de vie après la déclaration d'absence.",
+    "Agathe, épouse de Raphaël Leblanc, est présumée morte après un crash d’avion, aucun passager n'ayant pu être identifié.",
+    "Agathe n'est en réalité pas morte et a simplement rejoint son amant, loin des circonstances potentiellement mortelles."
+  ],
+  "Problématique": [
+    "Le retour d’une personne déclarée absente peut-il compromettre un nouveau mariage de son ancien ou ancienne conjoint(e) ?",
+    "Un acte de décès d’une personne présumée décédée lors d’un crash d’avion peut-il être remis à son conjoint ?",
+    "Le conjoint d’une personne présumée décédée peut-il vendre les biens qui lui appartenaient ?",
+    "Le conjoint d’une personne présumée décédée peut-il se remarier ?"
+  ],
+  "Règles": [
+    "L'article 128 du Code civil précise que le jugement de déclaration d'absence rend la dissolution du mariage effective, permettant au veuf ou à la veuve de se remarier.",
+    "L'article 129 du Code civil précise que la réapparition de la personne déclarée absente annule le jugement de déclaration d'absence.",
+    "L'article 132 du Code civil stipule que le mariage de l'absent reste dissous malgré une annulation du jugement de déclaration d'absence.",
+    "L'article 88 du Code civil précise qu'une personne disparue dans des circonstances potentiellement mortelles peut être déclarée décédée par jugement.",
+    "L'article 92 du Code civil dispose que si la personne déclarée disparue reparaît, le jugement de déclaration de disparition peut être annulé.",
+    "La loi n°77-1447 du 28 décembre 1977 rend les dispositions des articles 130, 131 et 132 applicables en cas de réapparition d'une personne disparue."
+  ],
+  "Analyse": [
+    "La réapparition de Jeanne annule le jugement de déclaration d'absence et permet à Lucas de rester marié à sa nouvelle femme, en vertu de l'article 132 du Code civil.",
+    "Le conjoint d'une personne disparue dans un accident aérien peut obtenir un acte de décès et se remarier, selon l'article 88 du Code civil.",
+    "La réapparition d'Agathe, en dehors des circonstances mortelles, annule le jugement de disparition et impacte les droits du conjoint en matière de biens, mais il conserve le droit de se remarier.",
+    "La loi n°77-1447 et l'article 92 du Code civil permettent de rétablir les droits de la personne réapparue et de dissoudre le mariage, mais le conjoint ne pourra plus vendre les biens hérités."
+  ],
+  "Solution": [
+    "La réapparition de Jeanne ne compromet pas le nouveau mariage de Lucas, car l'annulation du jugement de déclaration d'absence n'affecte pas la dissolution du mariage selon l'article 132 du Code civil.",
+    "Raphaël Leblanc peut obtenir l'acte de décès d'Agathe, hériter de ses biens et se remarier, mais il ne pourra plus vendre les biens de son ex-conjointe après sa réapparition.",
+    "Camille pourra demander la révocation de son adoption dès l'entrée en vigueur de la nouvelle loi, car elle permet désormais aux adoptés de demander la révocation dès 15 ans."
+  ]
+}

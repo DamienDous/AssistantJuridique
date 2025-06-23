@@ -1,0 +1,27 @@
+{
+  "Faits": [
+    "Le cas pratique permet de vérifier votre aptitude au raisonnement juridique.",
+    "Cet exercice se présente sous la forme d'une petite histoire qui met aux prises plusieurs protagonistes et qui débouche sur un litige qu'il faut résoudre.",
+    "Dans certains cas, des questions précises vous seront posées.",
+    "Dans d'autres, vous serez amenés à déterminer vous-mêmes les problématiques juridiques et à y apporter une solution.",
+    "Le préalable indispensable consiste en une lecture très attentive du texte du cas pratique afin que vous soyez certains d’avoir correctement compris les faits de l'espèce qui est relatée.",
+    "Par exemple, si le texte du cas pratique précise que le maire d’une commune autorise unilatéralement une entreprise à occuper le domaine public, ce n’est pas la même chose que s'il est énoncé que la commune conclut un contrat avec cette entreprise ayant pour effet d'autoriser cette même occupation domaniale.",
+    "Par exemple : si le cas pratique met en scène un litige entre le gestionnaire d'un service public et un usager, il vous faudra peut-être déterminer devant quelle juridiction porter ce litige.",
+    "Par exemple, si le cas pratique expose les conditions de fonctionnement d'une activité assurée par une collectivité publique, sans en dire plus, il vous faudra déterminer s’il s'agit d'une activité de service public ou non.",
+    "Par exemple, si vous avez qualifié l'activité de la collectivité publique de service public, vous saurez que certaines règles générales doivent s'appliquer : le principe d'égalité, de continuité et de mutabilité."
+  ],
+  "Problématique": "Comment résoudre un litige ou une difficulté juridique à partir des faits exposés dans un cas pratique en droit administratif ?",
+  "Règles": [
+    "Il convient de qualifier juridiquement les faits, c'est-à-dire de déterminer dans quelle catégorie juridique il convient de les classer.",
+    "Il faut dresser la liste des questions juridiques soulevées par le cas pratique.",
+    "Il faut déterminer les règles abstraites applicables aux faits qualifiés juridiquement.",
+    "Il faut appliquer les règles générales aux faits d’espèce afin de résoudre la difficulté juridique ou trancher le litige."
+  ],
+  "Analyse": [
+    "Il conviendra de procéder à la qualification juridique des faits qui vous sont présentés.",
+    "Cette qualification vous permettra de déterminer quelles sont les règles applicables pour trancher le litige ou résoudre une question juridique.",
+    "Il vous faudra bien entendu justifier la ou les solutions que vous proposez.",
+    "Même si votre solution s'avère erronée, le raisonnement que vous avez tenu peut être exact et vous rapporter des points."
+  ],
+  "Solution": "Il vous faudra faire application des règles générales que vous avez rappelées aux faits d’espèce afin de résoudre la difficulté juridique ou trancher le litige."
+}

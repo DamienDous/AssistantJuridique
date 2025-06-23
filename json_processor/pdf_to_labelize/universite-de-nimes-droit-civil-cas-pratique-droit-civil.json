@@ -1,0 +1,21 @@
+{
+  "Faits": [
+    "Sacha a acheté un terrain à M. Liquide qui lui a proposé un prix attractif et lui a confirmé que le terrain était constructible.",
+    "M. Liquide a remis un certificat d’urbanisme délivré par la mairie à Sacha, prouvant que le terrain était constructible.",
+    "Sacha a fait une demande de permis de construire à la mairie, mais cette dernière a refusé la demande en indiquant que le terrain était inconstructible selon le plan local d’urbanisme.",
+    "La mairie affirme n’avoir jamais délivré ce certificat, ce qui ferait de ce certificat un faux.",
+    "Sacha décide d'acheter un hangar pour y cultiver de la marijuana après avoir appris que la culture de marijuana à des fins commerciales constitue une infraction pénale.",
+    "Sacha découvre qu’il a payé le hangar 40% plus cher que le prix du marché."
+  ],
+  "Problématique": "Sacha peut-elle agir en nullité de vente des deux biens après avoir réglé le prix de vente dans les deux cas ?",
+  "Règles": [
+    "Un contrat est un accord de volonté entre deux ou plusieurs personnes destiné à créer, transmettre ou étendre des obligations.",
+    "La nullité du contrat peut être demandée si le consentement a été vicié, par exemple en cas de fraude ou d'erreur substantielle.",
+    "L'article 1130 du Code civil stipule que le contrat est nul si le consentement a été vicié par l’erreur, le dol ou la violence."
+  ],
+  "Analyse": [
+    "Dans le premier cas, Sacha pourrait agir en nullité en raison du certificat d'urbanisme falsifié, ce qui pourrait être considéré comme une fraude de la part du vendeur.",
+    "Dans le second cas, Sacha pourrait demander la nullité du contrat en raison de la surestimation du prix du hangar, mais il devra prouver que cette surestimation est liée à un dol ou à une erreur substantielle concernant la valeur du bien."
+  ],
+  "Solution": "Sacha peut potentiellement agir en nullité des ventes si elle prouve l'existence d'un dol ou d'une fraude, notamment pour le terrain et le certificat d’urbanisme falsifié. Concernant le hangar, elle pourrait également invoquer la nullité en raison de la surestimation du prix si elle démontre que cela constitue un dol."
+}

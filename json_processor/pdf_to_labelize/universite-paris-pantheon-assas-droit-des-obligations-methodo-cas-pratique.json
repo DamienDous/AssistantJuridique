@@ -1,0 +1,20 @@
+{
+  "Faits": [
+    "Le cas pratique s'apparente à une consultation juridique entre un avocat et son client.",
+    "Un individu demande de l’aide et le cas pratique peut nécessiter de véritables conseils juridiques.",
+    "Il est nécessaire d'élaborer un raisonnement juridique pour répondre aux problèmes et questions posés."
+  ],
+  "Problématique": "Comment élaborer un raisonnement juridique pour résoudre les problèmes juridiques posés dans un cas pratique, et quelles sont les étapes à suivre pour y parvenir ?",
+  "Règles": [
+    "Identification des questions posées dans le cas pratique, qu'elles soient clairement formulées ou non.",
+    "Sélection des fondements juridiques pertinents pour répondre aux questions posées.",
+    "Structure du syllogisme : la majeure, la mineure et la solution doivent être séparées et clairement formulées.",
+    "Le raisonnement juridique doit passer par la définition des règles de droit et leur application aux faits (majeure et mineure).",
+    "Il est préférable de n’envisager qu’un seul fondement juridique dans un syllogisme pour maintenir la clarté du raisonnement."
+  ],
+  "Analyse": [
+    "Il est important de bien poser les faits, de les qualifier juridiquement et de vérifier qu’ils correspondent au champ d’application des textes pertinents.",
+    "La solution doit être clairement exposée en résumant la réflexion et en indiquant si l'objectif visé sera atteint ou non."
+  ],
+  "Solution": "Dans le cadre d'un cas pratique, il faut d'abord identifier les questions, ensuite choisir les fondements juridiques appropriés, appliquer les règles de droit aux faits et formuler une solution claire en conclusion."
+}

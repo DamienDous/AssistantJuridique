@@ -1,0 +1,25 @@
+{
+  "Faits": [
+    "Fabien habite au Havre.",
+    "Les relations avec son voisin, Yannick, se sont dégradées à cause d’un bac à compost dans le jardin de Yannick.",
+    "Fabien envisage de saisir un tribunal pour faire cesser les désagréments générés par le bac à compost.",
+    "La ville de Vannes a pris un arrêté le 10 août 2022 ordonnant la fermeture du bar 'La p’tite bamboche' à 22h pendant 6 mois en raison des nuisances sonores.",
+    "Le gérant du bar décide d’agir devant le Tribunal judiciaire de Vannes.",
+    "Laurent Gina est comptable à Albi et fait de nombreux déplacements pour son travail.",
+    "L'employeur a équipé les véhicules de la société de systèmes de géolocalisation sans en informer les salariés.",
+    "Laurent Gina utilise parfois le véhicule de la société pour des déplacements personnels pendant le temps de travail.",
+    "L’employeur reproche ces déplacements personnels à Laurent Gina et envisage de l'utiliser pour légitimer un licenciement pour faute."
+  ],
+  "Problématique": "La problématique juridique porte sur la détermination de la juridiction compétente pour résoudre les différents litiges et la validité des preuves utilisées dans le cas de Laurent Gina.",
+  "Règles": [
+    "La compétence matérielle détermine la juridiction compétente en fonction de la nature du litige.",
+    "La compétence territoriale détermine la juridiction compétente en fonction du lieu du litige.",
+    "Le recours aux preuves de géolocalisation en cas de licenciement pour faute nécessite une analyse de leur légalité."
+  ],
+  "Analyse": [
+    "Dans le cas de Fabien et Yannick, la compétence matérielle repose sur les juridictions traitant les troubles du voisinage, et la compétence territoriale sur le lieu du litige, soit le Havre.",
+    "Dans le cas de la ville de Vannes et le bar, la compétence matérielle repose sur les juridictions administratives en matière d'arrêtés municipaux, tandis que la compétence territoriale dépend du tribunal judiciaire de Vannes.",
+    "Dans le cas de Laurent Gina, la compétence matérielle repose sur le droit du travail, et la compétence territoriale est liée à l'endroit où le licenciement a eu lieu."
+  ],
+  "Solution": "Dans le cas de Fabien et Yannick, la juridiction compétente sera probablement un tribunal de proximité ou un tribunal judiciaire situé au Havre. Pour le bar 'La p’tite bamboche', la juridiction compétente est le Tribunal judiciaire de Vannes. Concernant Laurent Gina, la juridiction compétente serait le tribunal des prud’hommes pour traiter du licenciement et des preuves utilisées par l’employeur."
+}

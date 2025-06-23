@@ -1,0 +1,43 @@
+{
+  "Faits": [
+    "Félix a créé une SARL spécialisée dans la fabrication et la vente de sushis.",
+    "Félix a décidé de faire des économies en ne suivant plus les protocoles sanitaires de conservation alimentaire tout en connaissant les risques.",
+    "Le 1er février 2020, il apprend que l’un de ses clients a été hospitalisé suite à la consommation de sushis puis est décédé de l’intoxication alimentaire malgré les efforts des médecins.",
+    "L’expertise montre que le décès est lié à une bactérie nocive qui s’était développée sur les sushis.",
+    "Jean est un multirécidiviste, déjà condamné pour tentative de meurtre et vol.",
+    "À sa sortie de prison, Jean reprend contact avec un ancien compagnon de cellule, Pierre.",
+    "Pierre a monté une petite société avec un copain, Paul, que connaissait aussi Jean.",
+    "La société marche bien, mais l’entente entre Pierre et Paul n’est pas au beau fixe.",
+    "Jean travaille un peu dans la société avec Pierre et Paul.",
+    "Un jour, Pierre convoque Jean dans son bureau et lui explique que la situation avec Paul n'est plus possible.",
+    "Pierre dit à Jean qu’il pourrait l’aider à se débarrasser de Paul et que cela pourrait lui rapporter une importante promotion dans la société.",
+    "Jean accepte, mais demande des garanties sous la forme d'un nouveau contrat de travail en blanc.",
+    "Pierre s'exécute, mais Jean sent qu'il peut obtenir plus et va tout balancer à son copain Paul.",
+    "Jean et Paul montent alors un plan pour éliminer Pierre.",
+    "Jean fait croire à Pierre qu’il prépare le meurtre de Paul.",
+    "Jean donne rendez-vous à Pierre un soir au bureau sous prétexte de parler du plan.",
+    "Cagoulés, Jean et Paul débarquent dans le bureau de Pierre et tirent simultanément dessus à coups de revolver.",
+    "Pierre s'effondre.",
+    "Jean s'empare des billets qu'il voit dans le coffre-fort que Pierre avait laissé ouvert.",
+    "Deux gardiens de nuit présents accourent.",
+    "Paul tire à son tour sur les gardiens, mais l’un est blessé et l’autre s'enfuit en déclenchant l’alarme.",
+    "Jean et Paul s’enfuient, mais dans leur course, Jean laisse tomber le petit sac rempli des billets volés.",
+    "Jean et Paul sèment un temps leur poursuivant."
+  ],
+  "Problématique": "Félix peut-il être poursuivi pour homicide involontaire ? La SARL peut-elle être poursuivie aussi ? Jean et Paul sont-ils coupables de meurtre, de blessure involontaire, ou de vol ou tentative de vol ?",
+  "Règles": [
+    "La législation sur l'homicide involontaire en cas de négligence ou de violation des règles de sécurité alimentaire.",
+    "La responsabilité pénale d’une société dans le cadre d’un comportement criminel de son dirigeant ou employé.",
+    "Le meurtre, défini comme l’acte intentionnel de tuer une autre personne.",
+    "La blessure involontaire, qui survient sans intention de nuire mais qui résulte d’une négligence ou d’un comportement imprudent.",
+    "Le vol, ou la tentative de vol, qui implique l’appropriation frauduleuse de biens."
+  ],
+  "Analyse": [
+    "Félix pourrait être poursuivi pour homicide involontaire si la négligence dans les protocoles de sécurité alimentaire a directement causé la mort du client.",
+    "La SARL pourrait également être poursuivie en raison de la responsabilité de l'employeur pour les actes de son dirigeant, surtout si ces actes ont mis en danger la vie d’autrui.",
+    "Jean et Paul semblent coupables de meurtre puisque l’intention de tuer semble présente, d’autant plus que le plan d’assassinat a été mis en œuvre avec préméditation.",
+    "Jean et Paul pourraient également être accusés de blessures involontaires vis-à-vis des gardiens de nuit, notamment si l’intention de nuire n’était pas présente mais qu’ils ont pris des actions imprudentes.",
+    "Jean et Paul sont clairement coupables de vol ou tentative de vol, puisqu’ils se sont appropriés des biens (les billets) par des moyens illégaux et violents."
+  ],
+  "Solution": "Félix pourrait être poursuivi pour homicide involontaire en raison de la violation des protocoles de sécurité alimentaire, et la SARL pourrait être tenue responsable en raison de l’implication de son dirigeant. Jean et Paul sont coupables de meurtre en raison de l’intention de tuer et de la préméditation. Ils pourraient également être accusés de blessures involontaires concernant les gardiens de nuit, ainsi que de vol ou tentative de vol concernant les billets."
+}
