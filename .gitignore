@@ -1,7 +1,8 @@
 # 🔄 Fichiers générés automatiquement
 pipeline_OCR/processed_files/
 pipeline_OCR/evaluation/logs/
-pipeline_OCR/traitement_lot/
+traitement_lot/
+DB/
 
 # 🧪 Environnements Python
 .env/
@@ -10,6 +11,7 @@ env/
 __pycache__/
 *.pyc
 *.png
+.vs/
 
 # IDE
 .vscode/
