@@ -6,7 +6,7 @@ from PIL import Image
 WHITE_THRESHOLD    = 250    # pixel ≥ ce seuil est “blanc”
 MIN_BAND_HEIGHT    = 1      # hauteur min (px) d’une bande sans blanc
 MIN_LAST_PAGE_FRAC = 0.3    # fraction de la hauteur moyenne pour garder la dernière page
-INPUT_DIR          = "pipeline_OCR/traitement_lot/exemples"  # dossier contenant vos PNG
+INPUT_DIR          = "pipeline_OCR/traitement_lot/input_png"  # dossier contenant vos PNG
 OUTPUT_DIR  = "pipeline_OCR/traitement_lot/outputs"  # dossier où seront enregistrés les PDFs
 
 def find_black_bands(gray, white_thresh, min_height):
