@@ -93,12 +93,12 @@ def extraire_texte_par_ocr(pdf_path):
 	for idx, page_img in enumerate(pages, start=1):
 		img_path = os.path.join(TMP_IMG_FOLDER, f"page_{idx:03d}.png")
 		page_img.save(img_path, "PNG")
-		print(f"✅ Page {idx} rasterisée => {img_path}")
+		# print(f"✅ Page {idx} rasterisée => {img_path}")
 
 		# OCR sur l’image
 		try:
 			texte_page = pytesseract.image_to_string(Image.open(img_path), lang=TESSERACT_LANG)
-			print(f"   📝 OCR effectué sur page_{idx:03d}.png (longueur ~ {len(texte_page)} caractères).")
+			# print(f"   📝 OCR effectué sur page_{idx:03d}.png (longueur ~ {len(texte_page)} caractères).")
 		except Exception as e:
 			print(f"   ❌ Erreur OCR page {idx}: {e}")
 			texte_page = ""
@@ -110,42 +110,22 @@ def extraire_texte_par_ocr(pdf_path):
 # ——————————————
 # GÉNÉRATION DU PROMPT
 # ——————————————
-
-def generer_prompt_cas_pratique_resume(texte_cas):
-	entete = (
-		"Veuillez générer un résumé concis du cas pratique suivant, tout en respectant "
-		"les points essentiels sans découper trop explicitement les informations. Le "
-		"résumé doit reprendre l'ensemble des éléments du cas sans trop simplifier ou "
-		"découper, et doit refléter l'esprit du cas dans sa globalité : "
-		"Incluez les faits principaux, la problématique juridique, les règles juridiques "
-		"pertinentes, l’analyse des éléments du cas, et la solution ou la conclusion légale. "
-		"Assurez-vous de ne pas simplifier de manière excessive ou de découper en "
-		"sous-catégories, car cela pourrait rendre le cas trop évident et non représentatif "
-		"de la complexité réelle du cas juridique. "
-		"Ne créez pas une structure en JSON ou en liste, mais plutôt un texte fluide qui "
-		"contient tous les éléments du cas, sans trop d'explication explicite des sous-catégories. "
-		"Si plusieurs cas pratiques sont présents dans le texte, veuillez choisir le cas "
-		"pratique le plus complexe à résumer. Le résumé doit être "
-		"rédigé en texte normal "
-	)
-	return entete + texte_cas
-
 def generer_prompt_cas_pratique_json():
 	entete = (
-			"Maintenant, veuillez convertir ce résumé suivant (sans modification), s'il est présent "
-			"OU s'il est écrit 'PAS DE RESUME', veuillez convertir le résumé que vous avez généré "
-			"précédemment (sans modification) en un fichier JSON structuré, en utilisant exactement "
-			"les mêmes informations, mais sous la forme suivante :"
-			"{"
-			"   'Faits': ['Fait 1', 'Fait 2', 'Fait 3'],"
-			"   'Problématique': 'Problématique juridique résumée ici.',"
-			"   'Règles': ['Règle 1', 'Règle 2', 'Règle 3'],"
-			"   'Analyse': ['Analyse 1', 'Analyse 2'],"
-			"   'Solution': 'Solution finale résumée ici.'"
+			"Le but de cet exercice est de classifier chaque phrase de ce cas d'étude dans les catégories : "
+			"Faits, Problématique, Règles, Analyse ou Solution. "
+			"Convertis **exactement** ce texte en JSON, **SANS AUCUNE OMISSION, RÉFORMULATION ni RÉSUMÉ**. "
+			"Tu dois utiliser exactement les mêmes informations en ne faisant **AUCUN CHANGEMENT**. "
+			"Convertis selon le schéma suivant: "
+			"{ "
+			"   'Faits': ['Fait 1', 'Fait 2', 'Fait 3'], "
+			"   'Problématique': 'Phrases pour la problématique juridique ici.', "
+			"   'Règles': ['Règle 1', 'Règle 2', 'Règle 3'], "
+			"   'Analyse': ['Analyse 1', 'Analyse 2'], "
+			"   'Solution': 'Phrases pour la solution finale ici.' "
 			"}"
-			"La structure du JSON doit correspondre exactement à celle fournie ci-dessus."
-			"Utilisez le résumé précédent pour remplir le JSON en respectant la structure fournie. "
-			"Vérifiez que chaque élément du résumé est inclus dans le JSON. Par exemple, assurez-vous que chaque fait dans la section 'Faits' correspond à une entrée JSON, et que la problématique est clairement formulée dans la section 'Problématique' du JSON."
+			"**NE MODIFIE RIEN**, ne retourne que du JSON. "
+			"Texte à convertir (**NE CHANGE RIEN**) :"
 			)
 	return entete
 
@@ -431,6 +411,8 @@ def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_r
 	else:
 		print("Texte récupéré")
 		json_copie_texte = json_copie
+	
+	print("👉 TAILLE JSON: ", len(json_copie_texte))
 
 	# Sauvegarder dans un fichier
 	with open(fichier_sortie, "w", encoding="utf-8") as f:
@@ -459,50 +441,49 @@ def main():
 		driver.get(chat_url)
 		time.sleep(2)
 
-		prompt_json = generer_prompt_cas_pratique_json()
-
 		# Attente et vérification
-		wait = WebDriverWait(driver, 20)
-		cpt = 0
+		wait = WebDriverWait(driver, 30)
+		
+		cpt = 1
+
 		for i, nom_fichier in enumerate(os.listdir(PDF_FOLDER_PATH), start=1):
 			chemin_complet = os.path.join(PDF_FOLDER_PATH, nom_fichier)
-
 			nom_sans_ext, extension = os.path.splitext(nom_fichier)
 			txt_path = PROMPT_FOLDER + "/" + nom_sans_ext + ".txt"
+			
+			# On charge le texte du pdf s'il a déjà été créer
 			if os.path.isfile(txt_path):
 				print("✅ ", txt_path, " existe")
 				with open(txt_path, "r", encoding="utf-8") as f:
 					texte_complet = f.read()
 			else:
+				# Sinon on extrait le texte du pdf par OCR
 				print("⚠️ ", txt_path, " n'existe pas")
-				# 1) Extraire le texte du PDF (ou OCR)
 				print(f"📄 Extraction du texte depuis : {chemin_complet} …")
 				texte_complet = extraire_texte_pdf(chemin_complet)
 				if not texte_complet.strip():
 					print("❗ Aucune donnée textuelle récupérée du PDF.")
 					return
-				# Générer le prompt structuré
+				# On écrit le texte récupéré par OCR pour ne pas avoir à le refaire
 				ecrire_prompt_dans_fichier(texte_complet, txt_path)
 				
-			resume_path = JSON_FOLDER + "/" + nom_sans_ext + "_resume.txt"
 			json_path = JSON_FOLDER + "/" + nom_sans_ext + ".json"
-			
-			if os.path.isfile(json_path) and os.path.isfile(resume_path):
+			# On vérifie que le texte n'a pas déjà était prompté
+			if os.path.isfile(json_path):
 				print("⚠️ Cas pratique déjà prompté")
 				continue
 			
-			prompt_resume = generer_prompt_cas_pratique_resume(texte_complet)
-			print("👉 taille prompt: ", len(prompt_resume))
+			print("👉 TAILLE PROMPT: ", len(texte_complet))
 
-			# Traiter les fichiers
-			cpt += 1
-			if len(prompt_resume) > 5000:
-				reponse = envoyer_prompt_et_recuperer_reponse(driver, prompt_resume, resume_path, numero_reponse=cpt)
-			else:
-				prompt_json += " "
-				prompt_json += texte_complet
-			cpt += 1
+			# Traiter les fichiers de taille inférieur à 5000 char 
+			if len(texte_complet) > 5000:
+				print("❗ cas d'étude trop grand : > 5000 caractères")
+				continue
+
+			# Initialisation prompt pour création json
+			prompt_json = generer_prompt_cas_pratique_json() + " " + texte_complet
 			reponse_enrichie = envoyer_prompt_et_recuperer_reponse(driver, prompt_json, json_path, numero_reponse=cpt)
+			cpt += 1
 		
 		time.sleep(100)
 	finally:
