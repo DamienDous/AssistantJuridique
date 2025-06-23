@@ -1,51 +1,55 @@
 IMAGE_NAME = pipeline-ocr
-INPUT_DIR = pipeline_OCR/traitement_lot/input_png
+INPUT_DIR = pipeline_OCR/traitement_lot/input_pdf
 OUTPUT_DIR = pipeline_OCR/traitement_lot/output
 
-
-# Détection de l'environnement Windows avec Git Bash pour support de pwd -W
-# ifdef ComSpec
-# 	PWD_HOST := $(shell cd)
-# else
-# 	PWD_HOST := pwd
-# endif
+# détection Git Bash vs PowerShell/CMD
+ifdef MSYSTEM
+  # MSYS ou MINGW → Git Bash
+  DOCKER_ENV     := MSYS_NO_PATHCONV=1
+  DOCKER_PWD_MNT := -v "$$(pwd -W):/app"
+else
+  # Windows natif (PowerShell/CMD)
+  DOCKER_ENV     :=
+  # CURDIR est C:\Users\… ; on remplace backslash par slash
+  DOCKER_PWD_MNT := -v "$(subst \,/,$(CURDIR)):/app"
+endif
 
 .PHONY: build
 build:
-	docker build -t $(IMAGE_NAME) .
+	$(DOCKER_ENV) docker build -t $(IMAGE_NAME) .
 
-# debug-path:
-# 	@echo "PWD_HOST = $(PWD_HOST)"
-# 	@echo "CURDIR = $(CURDIR)"
-	
-# Étape 1 : on récupère le nom complet du PNG utilisateur
-# Étape 2 : on enlève l’extension pour obtenir BASE
-# Étape 3 : on “sanitise” BASE en CLEAN (ASCII, underscores)
-# Étape 4 : on copie le PNG source vers INPUT_DIR/CLEAN.png
-# Étape 5 : on exécute le pipeline OCR dans le container sur CLEAN.png
-# Étape 6 : on renomme la sortie CLEAN_final_corrige.png en BASE_final_corrige.png
-# Étape 7 : on supprime le PNG temporaire CLEAN.png et le dossier temp_CLEAN
 run:
 ifndef FILE
-	$(error ❌ Veuillez spécifier un nom de fichier PNG avec FILE=nom.png)
+	$(error ❌ Veuillez spécifier un nom de fichier PDF avec FILE=nom.pdf)
 endif
-	docker run --rm \
-		-v "$(CURDIR):/app" \
+# Étape 1 : on récupère le nom complet du PDF utilisateur
+# Étape 2 : on enlève l’extension pour obtenir BASE
+# Étape 3 : on “sanitise” BASE en CLEAN (ASCII, underscores)
+# Étape 4 : on copie le PDF source vers INPUT_DIR/CLEAN.pdf
+# Étape 5 : on exécute le pipeline OCR dans le container sur CLEAN.pdf
+# Étape 6 : on renomme la sortie CLEAN_final_corrige.pdf en BASE_final_corrige.pdf
+# Étape 7 : on supprime le PDF temporaire CLEAN.pdf et le dossier temp_CLEAN
+	$(DOCKER_ENV) docker run --rm \
+		$(DOCKER_PWD_MNT) \
 		-v language_tool_cache:/root/.cache/language_tool_python \
 		-w /app $(IMAGE_NAME) \
 		sh -c '\
-			ORIG="$$1"; \
-			ORIG="$$(basename "$${ORIG}")"; \
-			BASE="$${ORIG%.png}"; \
-			CLEAN="$$(echo "$${BASE}" | iconv -f UTF-8 -t ASCII//TRANSLIT | sed -E "s/[^[:alnum:]]+/_/g")"; \
-			mkdir -p "pipeline_OCR/traitement_lot/input_png/$${CLEAN}"; \
-			cp "pipeline_OCR/traitement_lot/input_png/$${ORIG}" \
-			   "pipeline_OCR/traitement_lot/input_png/$${CLEAN}/image.png"; \
-			pipeline_OCR/pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh \
-			   "pipeline_OCR/traitement_lot/input_png/$${CLEAN}" \
-			   "pipeline_OCR/traitement_lot/output/$${CLEAN}"; \
-			rm -rf "pipeline_OCR/traitement_lot/input_png/$${CLEAN}"; \
-			rm -rf "pipeline_OCR/traitement_lot/output/$${CLEAN}" \
+		  RAW="$$1"; \
+		  case "$$RAW" in \
+		    *.pdf) ORIG="$$RAW";; \
+		    *)      ORIG="$$RAW.pdf";; \
+		  esac; \
+		  BASE="$${ORIG%.pdf}"; \
+		  CLEAN="$$(echo "$${BASE}" \
+		    | iconv -f UTF-8 -t ASCII//TRANSLIT \
+		    | sed -E "s/[^[:alnum:]]+/_/g")"; \
+		  cp "$(INPUT_DIR)/$${ORIG}" "$(INPUT_DIR)/$${CLEAN}.pdf"; \
+		  pipeline_OCR/pipelines/pipeline_base/pipeline_reconnaissance_text_pdf.sh \
+		    "$(INPUT_DIR)/$${CLEAN}.pdf" "$(OUTPUT_DIR)/temp_$${CLEAN}"; \
+		  mv "$(OUTPUT_DIR)/$${CLEAN}_final_corrige.pdf" \
+		     "$(OUTPUT_DIR)/$${BASE}_final_corrige.pdf"; \
+		  rm -f "$(INPUT_DIR)/$${CLEAN}.pdf"; \
+		  rm -rf  "$(OUTPUT_DIR)/temp_$${CLEAN}" \
 		' _ "$(FILE)"
 
 run-safe:
@@ -57,13 +61,15 @@ run-safe:
 	fi
 	
 clean:
-	docker rmi $(IMAGE_NAME) || true
+	$(DOCKER_ENV) docker rmi $(IMAGE_NAME) || true
 
 run-all:
-	@cmd /V:ON /C "for %%f in ($(INPUT_DIR)\*.png) do ( \
-		echo ▶️ Traitement de %%~nxf... && \
-		$(MAKE) run FILE=%%~nxf || exit /b 1 \
-	)"
+	@for file in $(INPUT_DIR)/*.pdf; do \
+		name=$$(basename "$$file"); \
+		echo "▶️ Traitement de $$name..."; \
+		make run FILE="$$name" || exit 1; \
+	done
+
 run-all-safe:
 	@if [ "$$MSYSTEM" = "MINGW64" ] || [ "$$MSYSTEM" = "MSYS" ]; then \
 		echo "❌ ERREUR : Ne pas exécuter ce Makefile depuis Git Bash. Utilise PowerShell ou CMD pour que Docker monte les volumes correctement."; \
@@ -75,15 +81,15 @@ run-all-safe:
 # Lancer le scraping Studocu (CSV obligatoire)
 .PHONY: scrape-studocu
 scrape-studocu:
-	env MSYS_NO_PATHCONV=1 docker run --rm \
-		-v "$(PWD_HOST):/app" \
+	$(DOCKER_ENV) docker run --rm \
+		-v "$$($(PWD_CMD)):/app" \
 		-w /app $(IMAGE_NAME) \
 		python studocu_scraper.py
 
 # Lancer le scraping Studocu + OCR pour tous les liens du CSV (optionnel, à personnaliser)
 .PHONY: scrape-studocu-all
 scrape-studocu-all:
-	env MSYS_NO_PATHCONV=1 docker run --rm \
-		-v "$(PWD_HOST):/app" \
+	$(DOCKER_ENV) docker run --rm \
+		-v "$$($(PWD_CMD)):/app" \
 		-w /app $(IMAGE_NAME) \
 		python studocu_scraper.py --all
