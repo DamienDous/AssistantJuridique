@@ -26,9 +26,7 @@ foreach ($file in $allFiles) {
 		docker run --rm `
 			-v "${inDir}:/data" `
 			-v "${outDir}:/data/out" `
-			-v "${script}:/script.sh" `
-			-v "${PWD}/tools:/tools" `
-			$dockerImg /script.sh "$(Split-Path -Leaf $inFile)"
+			$dockerImg bash /tools/ocr_script.sh "$(Split-Path -Leaf $inFile)"
 
 	} -ArgumentList $file.FullName, $inputFolder, $outputFolder, $scriptPath, "ocrmypdf-local"
 

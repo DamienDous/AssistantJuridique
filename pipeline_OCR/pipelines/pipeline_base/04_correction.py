@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from pathlib import Path
+import sys
 import os
 import re
 import language_tool_python
@@ -37,29 +37,13 @@ def corriger_texte(texte, tool, lexique):
     return result.strip()
 
 def main():
-    workdir = os.environ.get("WORKDIR")
-    if not workdir:
-        print("❌ Erreur : la variable WORKDIR n'est pas définie.")
-        exit(1)
+    # -->> ICI : on attend 2 arguments <input.txt> <output.txt>
+    if len(sys.argv) < 3:
+        print("Usage: 04_correction.py <input.txt> <output.txt>")
+        sys.exit(1)
 
-    # trouver le dossier *_txt
-    text_dir = None
-    for root, dirs, _ in os.walk(workdir):
-        for d in dirs:
-            if d.endswith("_txt") and not d.endswith("_txt_corrige"):
-                text_dir = os.path.join(root, d)
-                break
-        if text_dir:
-            break
-
-    if not text_dir:
-        print(f"❌ Aucun dossier '*_txt' trouvé sous {workdir}")
-        exit(1)
-
-    target_dir = text_dir.replace("_txt", "_txt_corrige")
-    os.makedirs(target_dir, exist_ok=True)
-
-    tool = language_tool_python.LanguageTool("fr")
+    input_path = sys.argv[1]
+    output_path = sys.argv[2]
 
     # Chargement du lexique métier (un terme par ligne, en minuscules)
     lexique = []
@@ -68,22 +52,17 @@ def main():
         with open(lexique_path, encoding='utf-8') as f:
             lexique = [l.strip() for l in f if l.strip()]
 
-    # Traiter chaque .txt
-    for filename in os.listdir(text_dir):
-        if not filename.endswith(".txt"):
-            continue
-        input_path = os.path.join(text_dir, filename)
-        output_path = os.path.join(target_dir, filename)
+    tool = language_tool_python.LanguageTool("fr", remote_server="http://localhost:8010")
+    
+    with open(input_path, "r", encoding="utf-8", errors="ignore") as fin:
+        raw = fin.read()
 
-        with open(input_path, "r", encoding="utf-8", errors="ignore") as fin:
-            raw = fin.read()
+    corrected = corriger_texte(raw, tool, lexique)
 
-        corrected = corriger_texte(raw, tool, lexique)
+    with open(output_path, "w", encoding="utf-8") as fout:
+        fout.write(corrected)
 
-        with open(output_path, "w", encoding="utf-8") as fout:
-            fout.write(corrected)
-
-        # print(f"✅ Corrigé : {output_path}")
+    # print(f"✅ Corrigé : {output_path}")
 
 if __name__ == "__main__":
     main()
