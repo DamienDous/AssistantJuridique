@@ -1,4 +1,5 @@
-FROM python:3.10-slim
+FROM debian:bookworm
+RUN apt-get update && apt-get install -y python3 python3-pip
 
 # 1. Mise à jour et installation des dépendances système
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,21 +8,50 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	tesseract-ocr \
 	tesseract-ocr-fra \
 	unpaper \
-	imagemagick \
 	ghostscript \
 	curl \
 	openjdk-17-jre-headless \
+	ca-certificates \
+    build-essential \
+    pkg-config \
+    libpng-dev \
+    libjpeg-dev \
+    libtiff-dev \
+    libwebp-dev \
+    libopenjp2-7-dev \
+    libheif-dev \
+    libde265-dev \
+    libraw-dev \
+    jq \
 	&& rm -rf /var/lib/apt/lists/*
 
+# Installation ImageMagick 7 depuis source
+RUN curl -L https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz -C /tmp && \
+    cd /tmp/ImageMagick-* && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd / && \
+    rm -rf /tmp/ImageMagick-*
+
+RUN magick --version
+
 # 2. Installation des dépendances Python
-RUN pip install --no-cache-dir pillow numpy ocrmypdf language_tool_python
+RUN pip install --break-system-packages --no-cache-dir pillow numpy ocrmypdf language_tool_python nltk
+# Télécharge le tokenizer de phrases français
+RUN mkdir -p /usr/share/nltk_data
+RUN python3 -c "import nltk; nltk.download('punkt', download_dir='/usr/share/nltk_data')"
+RUN python3 -c "import nltk; nltk.download('punkt_tab', download_dir='/usr/share/nltk_data')"
 
 # 3. Création des dossiers utilisés par le pipeline
 RUN mkdir -p /data /data/out/pdf /data/out/txt /data/logs /tools
 
-# RUN curl -L -o /tools/LanguageTool-6.4.zip https://languagetool.org/download/LanguageTool-6.4.zip \
-#  && unzip /tools/LanguageTool-6.4.zip -d /tools/ \
-#  && rm /tools/LanguageTool-6.4.zip
+# Téléchargement et extraction de LanguageTool en avance (optionnel)
+RUN mkdir -p /tools/lt && \
+    curl -L -o /tools/lt.zip https://languagetool.org/download/LanguageTool-6.4.zip && \
+    unzip /tools/lt.zip -d /tools/lt && \
+    rm /tools/lt.zip
 
 # 4. Scripts utilitaires (tout est maintenant dans /tools)
 COPY ocr_script.sh                                          /tools/ocr_script.sh
@@ -29,12 +59,18 @@ COPY tools/read_and_crop.py                                 /tools/read_and_crop
 COPY pipeline_OCR/pipelines/pipeline_base/clean_text.sh		/tools/clean_text.sh
 COPY pipeline_OCR/pipelines/pipeline_base/04_correction.py	/tools/04_correction.py
 COPY dico_juridique.txt										/app/dico_juridique.txt
+COPY tools/entrypoint.sh 									/tools/entrypoint.sh
+COPY tools/batch_ocr_tester.sh 								/tools/batch_ocr_tester.sh
+COPY tools/launch_all.sh 								    /tools/launch_all.sh
+COPY tools/vote_ocr_paragraphe.py 							/tools/vote_ocr_paragraphe.py
 
 # 5. Droits d’exécution sur les scripts bash
 RUN chmod +x /tools/*.sh
-
 # 6. Dossier de travail par défaut
-WORKDIR /data
+WORKDIR /
+
+# Entrypoint custom
+# ENTRYPOINT ["/tools/launch_all.sh"]
 
 # 7. Commande par défaut (tu peux la surcharger au run)
-CMD ["/bin/bash"]
+CMD ["/data", "/data/out", "16"]
