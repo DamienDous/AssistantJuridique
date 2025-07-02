@@ -1,7 +1,4 @@
-# 🔄 Fichiers générés automatiquement
-pipeline_OCR/processed_files/
-pipeline_OCR/evaluation/logs/
-traitement_lot/
+# 🔄 Fichiers de la base de données
 DB/
 
 # 🧪 Environnements Python
@@ -10,7 +7,6 @@ DB/
 env/
 __pycache__/
 *.pyc
-*.png
 .vs/
 
 # IDE
@@ -26,4 +22,3 @@ __pycache__/
 
 # CMake-generated install script
 cmake_install.cmake
-data_scraper/chromedriver.exe
