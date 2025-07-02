@@ -1,62 +1,97 @@
 import json
 import difflib
 import pytesseract
-from PIL import Image
-import fitz  # PyMuPDF
-import io
 from pathlib import Path
-import subprocess
+import re
+import spacy
+from pdf2image import convert_from_path
 
-def find_closest_match(target, corpus, threshold=0.90):
-	match = difflib.get_close_matches(target, corpus, n=1, cutoff=threshold)
-	return match[0] if match else None
+# Chargement du modèle spaCy français
+nlp = spacy.load("fr_core_news_sm")
 
-def nettoyer_json(json_file, pdf_file, output_file=None):
-	with open(json_file, "r", encoding="utf-8") as f:
-		original = json.load(f)
+def nettoyer_texte(texte):
+    texte = texte.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+    texte = texte.replace("«", '"').replace("»", '"')
+    return re.sub(r"\s+", " ", texte).strip()
 
-	txt_path = "/DB/mon_fichier.txt"
+def decouper_phrases_spacy(texte):
+    doc = nlp(texte)
+    return [sent.text.strip() for sent in doc.sents]
 
-	subprocess.run(
-		["pdftotext", "-layout", str(pdf_file), str(txt_path)], 
-		check=True)
+def trouver_meilleur_match(cible, phrases, max_concat=4, seuil=0.7):
+    cible_norm = nettoyer_texte(cible.lower())
+    meilleur, meilleur_score = None, 0
+    for i in range(len(phrases)):
+        for j in range(i + 1, min(i + max_concat + 1, len(phrases))):
+            concat = " ".join(phrases[i:j])
+            score = difflib.SequenceMatcher(None, cible_norm, nettoyer_texte(concat.lower())).ratio()
+            if score > meilleur_score:
+                meilleur, meilleur_score = concat, score
+            if score == 1.0:
+                return concat, 1.0
+    if meilleur_score >= seuil:
+        return meilleur, meilleur_score
+    return None, meilleur_score
 
-	ocr_sentences = ""
-	with open(txt_path, "r", encoding="utf-8") as f:
-		ocr_sentences = f.read()
-	ocr_sentences = ocr_sentences.replace("\n", " ").split(".") 
+def chercher_sous_phrase(cible, phrases):
+    cible_norm = nettoyer_texte(cible.lower())
+    for phrase in phrases:
+        if nettoyer_texte(phrase.lower()) in cible_norm:
+            return phrase
+    return None
 
-	cleaned = {}
-	for section in ["Faits", "Problématique", "Règles", "Analyse", "Solution"]:
-		data = original.get(section)
-		if isinstance(data, list):
-			cleaned[section] = [match for phrase in data if (match := find_closest_match(phrase, ocr_sentences))]
-		elif isinstance(data, str):
-			match = find_closest_match(data, ocr_sentences)
-			cleaned[section] = match if match else ""
-		else:
-			cleaned[section] = data
+def extraire_texte_ocr(pdf_file):
+    print(f"🛠 OCR de {pdf_file.name}")
+    contenu = ""
+    images = convert_from_path(str(pdf_file))
+    for image in images:
+        contenu += pytesseract.image_to_string(image, lang="fra") + "\n"
+    print("✅ OCR terminé.")
+    return contenu
 
-	if not output_file:
-		output_file = Path(json_file).with_stem(Path(json_file).stem + "_nettoye")
+def construire_datasets_par_json(pdf_folder, json_folder, output_folder):
+    output_folder.mkdir(parents=True, exist_ok=True)
 
-	with open(output_file, "w", encoding="utf-8") as f:
-		json.dump(cleaned, f, indent=2, ensure_ascii=False)
+    for json_file in json_folder.glob("*.json"):
+        pdf_file = pdf_folder / (json_file.stem + ".pdf")
+        if not pdf_file.exists():
+            print(f"⚠️ PDF manquant pour : {json_file.name}")
+            continue
 
-	print(f"✅ JSON nettoyé enregistré dans : {output_file}")
+        print(f"🔍 Traitement : {json_file.name} + {pdf_file.name}")
+
+        output_jsonl = output_folder / f"{json_file.stem}_mistral_training.jsonl"
+
+        try:
+            texte_ocr = extraire_texte_ocr(pdf_file)
+            phrases_ocr = decouper_phrases_spacy(nettoyer_texte(texte_ocr))
+
+            with open(json_file, encoding="utf-8") as f:
+                data = json.load(f)
+
+            with open(output_jsonl, "w", encoding="utf-8") as out:
+                for section in ["Faits", "Problématique", "Règles", "Analyse", "Solution"]:
+                    contenu = data.get(section, [])
+                    if isinstance(contenu, str):
+                        contenu = [contenu]
+                    for phrase in contenu:
+                        match, score = trouver_meilleur_match(phrase, phrases_ocr)
+                        if match:
+                            out.write(json.dumps({"phrase": match, "label": section, "source": "match"}, ensure_ascii=False) + "\n")
+                        else:
+                            sous_phrase = chercher_sous_phrase(phrase, phrases_ocr)
+                            if sous_phrase:
+                                out.write(json.dumps({"phrase": sous_phrase, "label": section, "source": "submatch"}, ensure_ascii=False) + "\n")
+                            else:
+                                out.write(json.dumps({"phrase": phrase, "label": "Autre", "source": "original"}, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"❌ Erreur avec {json_file.name} : {e}")
+
+        print(f"✅ Fichier exporté : {output_jsonl}")
 
 if __name__ == "__main__":
-    dossier = "/DB"  # 🔁 à adapter selon ton arborescence
-    dossier_path = Path(dossier)
-    json_files = list(dossier_path.glob("*.json"))
+    pdf_folder = Path("./json_processor/pdf")
+    json_folder = Path("./json_processor/json")
+    output_folder = Path("./json_processor/json_out")
 
-    for json_file in json_files:
-        pdf_file = json_file.with_suffix(".pdf")
-        if pdf_file.exists():
-            print(f"🔍 Traitement : {json_file.name} + {pdf_file.name}")
-            try:
-                nettoyer_json(json_file, pdf_file)
-            except Exception as e:
-                print(f"❌ Erreur pour {json_file.name} : {e}")
-        else:
-            print(f"⚠️ PDF manquant pour : {json_file.name}")
+    construire_datasets_par_json(pdf_folder, json_folder, output_folder)
