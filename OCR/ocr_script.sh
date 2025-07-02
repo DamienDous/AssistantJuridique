@@ -79,7 +79,7 @@ bash /tools/clean_text.sh "$raw_txt" "$clean_txt"
 # 8) Correction avec LanguageTool
 # corr_txt="${output_folder}/${filename_noext}_corr.txt"
 # echo "🧠 Étape 7 : Correction avec LanguageTool"
-# python3 /tools/04_correction.py "$clean_txt" "$corr_txt"
+# python3 /tools/langage_tool_correction.py "$clean_txt" "$corr_txt"
 
 # 9) Déplacement du txt final dans le dossier out/txt
 mv "$raw_txt" "$output_txt"
