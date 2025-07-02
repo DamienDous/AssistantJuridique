@@ -3,8 +3,25 @@ import sys
 import os
 import re
 import language_tool_python
+import threading
 
-def corriger_texte(texte, tool, lexique):
+LT_PORTS = [8010, 8011, 8012, 8013, 8014, 8015, 8016, 8017]
+_next_port = [0]
+_port_lock = threading.Lock()
+
+def get_next_server_url():
+    with _port_lock:
+        idx = _next_port[0]
+        _next_port[0] = (_next_port[0] + 1) % len(LT_PORTS)
+    return f"http://localhost:{LT_PORTS[idx]}"
+
+def check_on_next_server(phrase):
+    url = get_next_server_url()
+    tool = language_tool_python.LanguageTool("fr", remote_server=url)
+    matches = tool.check(phrase)
+    return language_tool_python.utils.correct(phrase, matches)
+
+def corriger_texte(texte, lexique):
     # Découper en phrases pour éviter les blocages
     phrases = re.split(r'(?<=[.!?])\s+', texte)
     result = ""
@@ -21,9 +38,8 @@ def corriger_texte(texte, tool, lexique):
         if not phrase:
             continue
 
-        # 1) Corrections LanguageTool
-        matches = tool.check(phrase)
-        corr = language_tool_python.utils.correct(phrase, matches)
+        # 1) Corrections LanguageTool (round-robin)
+        corr = check_on_next_server(phrase)
 
         # 2) Application du lexique métier
         if pattern:
@@ -52,12 +68,10 @@ def main():
         with open(lexique_path, encoding='utf-8') as f:
             lexique = [l.strip() for l in f if l.strip()]
 
-    tool = language_tool_python.LanguageTool("fr", remote_server="http://localhost:8010")
-    
     with open(input_path, "r", encoding="utf-8", errors="ignore") as fin:
         raw = fin.read()
 
-    corrected = corriger_texte(raw, tool, lexique)
+    corrected = corriger_texte(raw, lexique)
 
     with open(output_path, "w", encoding="utf-8") as fout:
         fout.write(corrected)
