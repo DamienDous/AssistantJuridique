@@ -51,7 +51,6 @@ ldconfig && \
 cd / && \
 rm -rf /tmp/ImageMagick-*
 
-RUN magick --version
 RUN apt-get update && apt-get install -y clustalo
 
 # 4. Scripts utilitaires (tout est maintenant dans /tools)
@@ -60,7 +59,6 @@ COPY CLEAN/read_and_crop.py                     /tools/read_and_crop.py
 COPY OCR/clean_text.sh		                    /tools/clean_text.sh
 COPY OCR/langage_tool_correction.py	            /tools/langage_tool_correction.py
 COPY OCR/dico_juridique.txt						/app/dico_juridique.txt
-COPY OCR/entrypoint.sh 							/tools/entrypoint.sh
 COPY OCR/batch_ocr_tester.sh 					/tools/batch_ocr_tester.sh
 COPY OCR/launch_all.sh 							/tools/launch_all.sh
 COPY OCR/vote_ocr_paragraphe.py 				/tools/vote_ocr_paragraphe.py
@@ -72,7 +70,7 @@ RUN chmod +x /tools/*.sh
 WORKDIR /
 
 # Entrypoint custom
-# ENTRYPOINT ["/tools/launch_all.sh"]
+ENTRYPOINT ["/tools/launch_all.sh"]
 
 # 7. Commande par défaut (tu peux la surcharger au run)
 CMD ["/data", "/data/out", "16"]
