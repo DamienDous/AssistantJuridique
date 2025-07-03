@@ -134,7 +134,7 @@ for f in "${all_files[@]}"; do
   if (( ${#variant_txts[@]} >= 2 )); then
     output_vote="${output_folder}/${filename_noext}_vote.txt"
     echo "🗳️ Vote OCR pour $filename_noext (${#variant_txts[@]} variantes)"
-    python3 /tools/vote_ocr_paragraphe.py "${variant_txts[@]}" "$output_vote"
+    python3 /tools/vote_ocr_clustal.py "${variant_txts[@]}" "$output_vote"
   else
     echo "⚠️ Pas assez de variantes OCR pour $filename_noext, vote ignoré"
   fi

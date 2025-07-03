@@ -52,6 +52,7 @@ cd / && \
 rm -rf /tmp/ImageMagick-*
 
 RUN magick --version
+RUN apt-get update && apt-get install -y clustalo
 
 # 4. Scripts utilitaires (tout est maintenant dans /tools)
 COPY OCR/ocr_script.sh                          /tools/ocr_script.sh
@@ -63,6 +64,7 @@ COPY OCR/entrypoint.sh 							/tools/entrypoint.sh
 COPY OCR/batch_ocr_tester.sh 					/tools/batch_ocr_tester.sh
 COPY OCR/launch_all.sh 							/tools/launch_all.sh
 COPY OCR/vote_ocr_paragraphe.py 				/tools/vote_ocr_paragraphe.py
+COPY OCR/vote_ocr_clustal.py 					/tools/vote_ocr_clustal.py
 
 # 5. Droits d’exécution sur les scripts bash
 RUN chmod +x /tools/*.sh
