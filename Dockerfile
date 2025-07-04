@@ -63,6 +63,7 @@ COPY OCR/batch_ocr_tester.sh 					/tools/batch_ocr_tester.sh
 COPY OCR/launch_all.sh 							/tools/launch_all.sh
 COPY OCR/vote_ocr_paragraphe.py 				/tools/vote_ocr_paragraphe.py
 COPY OCR/vote_ocr_clustal.py 					/tools/vote_ocr_clustal.py
+COPY OCR/ocr_postprocess_all.py 				/tools/ocr_postprocess_all.py
 
 # 5. Droits d’exécution sur les scripts bash
 RUN chmod +x /tools/*.sh
