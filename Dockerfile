@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # 2. Installation des dépendances Python
-RUN pip install --break-system-packages --no-cache-dir pillow numpy ocrmypdf language_tool_python nltk
+RUN pip install --break-system-packages --no-cache-dir pillow numpy ocrmypdf language_tool_python nltk pyspellchecker
 # Télécharge le tokenizer de phrases français
 RUN mkdir -p /usr/share/nltk_data
 RUN python3 -c "import nltk; nltk.download('punkt', download_dir='/usr/share/nltk_data')"
@@ -51,8 +51,6 @@ ldconfig && \
 cd / && \
 rm -rf /tmp/ImageMagick-*
 
-RUN apt-get update && apt-get install -y clustalo
-
 # 4. Scripts utilitaires (tout est maintenant dans /tools)
 COPY OCR/ocr_script.sh                          /tools/ocr_script.sh
 COPY CLEAN/read_and_crop.py                     /tools/read_and_crop.py
@@ -62,7 +60,6 @@ COPY OCR/dico_juridique.txt						/app/dico_juridique.txt
 COPY OCR/batch_ocr_tester.sh 					/tools/batch_ocr_tester.sh
 COPY OCR/launch_all.sh 							/tools/launch_all.sh
 COPY OCR/vote_ocr_paragraphe.py 				/tools/vote_ocr_paragraphe.py
-COPY OCR/vote_ocr_clustal.py 					/tools/vote_ocr_clustal.py
 COPY OCR/ocr_postprocess_all.py 				/tools/ocr_postprocess_all.py
 
 # 5. Droits d’exécution sur les scripts bash
