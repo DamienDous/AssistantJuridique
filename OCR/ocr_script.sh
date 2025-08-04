@@ -90,11 +90,11 @@ echo "✅ TXT final créé : $output_txt"
 #     echo "🧹 Suppression du dossier temporaire : $output_folder"
 #     rm -rf "$output_folder"
 # fi
-echo "🏁 OCR terminé avec succès : $inputFile"
+echo "🏁 OCR terminé avec succès : $output_txt"
 
 } || {
-    echo "❌ ECHEC : $inputFile"
-    echo "💥 Une erreur est survenue pendant le traitement de $inputFile"
+    echo "❌ ECHEC : $output_txt"
+    echo "💥 Une erreur est survenue pendant le traitement de $output_txt"
     exit 1
 }
 

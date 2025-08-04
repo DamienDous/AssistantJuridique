@@ -71,7 +71,13 @@ for f in "${all_files[@]}"; do
         # Utilise flock pour éviter les collisions d’écriture
         flock /data/out/scoring_languagetool.csv bash -c \
         "echo \"$(basename "$output_txt"),$variant,$nb_fautes,$nb_carac,$ratio\" >> /data/out/scoring_languagetool.csv"
-    done  
+    done
+
+    vote_txt_clean="${output_folder}/${filename_noext}/${filename_noext}_vote_clean.txt"
+    if [[ -f "$vote_txt_clean" ]]; then
+      echo "⏭️  Déjà traité : $vote_txt_clean"
+      continue
+    fi
 
     # On construit la liste des .txt pour toutes les variantes de ce fichier
     variant_txts=()
@@ -81,17 +87,16 @@ for f in "${all_files[@]}"; do
     done
 
     # Si on a au moins deux variantes (sinon pas de vote pertinent)
+    vote_txt="${output_folder}/${filename_noext}/${filename_noext}_vote.txt"
     if (( ${#variant_txts[@]} >= 2 )); then
-      vote_txt="${output_folder}/${filename_noext}/${filename_noext}_vote.txt"
       echo "🗳️ Vote OCR pour $filename_noext (${#variant_txts[@]} variantes)"
       python3 /tools/vote_ocr_paragraphe.py "${variant_txts[@]}" "$vote_txt"
     else
       echo "⚠️ Pas assez de variantes OCR pour $filename_noext, vote ignoré"
     fi
 
-    vote_txt="${output_folder}/${filename_noext}/${filename_noext}_vote.txt"
+
     if [[ -f "$vote_txt" ]]; then
-    vote_txt_clean="${output_folder}/${filename_noext}/${filename_noext}_vote_clean.txt"
       python3 /tools/ocr_postprocess_all.py "$vote_txt" "$vote_txt_clean" --languagetool --log_corrections "${output_folder}/corrections_languagetool.csv"
       cp "$vote_txt_clean" "$result_folder" # copie dans le fichier input du résultat
       nb_carac=$(wc -m < "$vote_txt_clean")

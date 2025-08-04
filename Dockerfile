@@ -26,7 +26,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # 2. Installation des dépendances Python
-RUN pip install --break-system-packages --no-cache-dir pillow numpy ocrmypdf language_tool_python nltk pyspellchecker
+RUN pip install --break-system-packages --no-cache-dir \
+	pillow \
+	numpy \
+	ocrmypdf \
+	language_tool_python \
+	nltk \
+	pyspellchecker \
+	jiwer
 # Télécharge le tokenizer de phrases français
 RUN mkdir -p /usr/share/nltk_data
 RUN python3 -c "import nltk; nltk.download('punkt', download_dir='/usr/share/nltk_data')"
@@ -58,9 +65,11 @@ COPY OCR/clean_text.sh		                    /tools/clean_text.sh
 COPY OCR/langage_tool_correction.py	            /tools/langage_tool_correction.py
 COPY OCR/dico_juridique.txt						/app/dico_juridique.txt
 COPY OCR/batch_ocr_tester.sh 					/tools/batch_ocr_tester.sh
+COPY OCR/variant_ocr_tester.sh 					/tools/variant_ocr_tester.sh
 COPY OCR/launch_all.sh 							/tools/launch_all.sh
 COPY OCR/vote_ocr_paragraphe.py 				/tools/vote_ocr_paragraphe.py
 COPY OCR/ocr_postprocess_all.py 				/tools/ocr_postprocess_all.py
+COPY OCR/score_ocr.py 							/tools/score_ocr.py
 
 # 5. Droits d’exécution sur les scripts bash
 RUN chmod +x /tools/*.sh

@@ -27,7 +27,7 @@ for i in {1..20}; do
 done
 
 # 2. Lancer ton batch OCR (qui NE lance PLUS LanguageTool !)
-bash /tools/batch_ocr_tester.sh "$@"
+bash /tools/variant_ocr_tester.sh "$@"
 
 # 3. Stopper LanguageTool proprement
 echo "⏹️ Arrêt LanguageTool..."
