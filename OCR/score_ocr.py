@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os, glob, csv, re, sys
 from jiwer import wer, cer
+from collections import Counter
 
 def get_stats(text):
     nb_mots = len(re.findall(r'\w+', text))
@@ -13,9 +14,24 @@ def get_stats(text):
     ratio_punct = nb_punct / nb_mots if nb_mots > 0 else 0
     return nb_mots, nb_paragraphes, nb_maj, nb_points, nb_exclam, nb_quest, ratio_punct
 
+def jaccard_words(a, b):
+    set_a = set(re.findall(r'\w+', a.lower()))
+    set_b = set(re.findall(r'\w+', b.lower()))
+    inter = len(set_a & set_b)
+    union = len(set_a | set_b)
+    return inter / union if union else 1.0
+
+def jaccard_multiset(a, b):
+    ca = Counter(re.findall(r'\w+', a.lower()))
+    cb = Counter(re.findall(r'\w+', b.lower()))
+    inter = sum((ca & cb).values())
+    union = sum((ca | cb).values())
+    return inter / union if union else 1.0
+
 # Entrées
 ocr_path = sys.argv[1]  # Fichier OCR
 ref_path = sys.argv[2]  # Fichier de référence
+cat_path = sys.argv[3]  # Fichier de référence
 base = os.path.basename(ocr_path)
 
 # Chargement des textes
@@ -23,10 +39,15 @@ with open(ocr_path, encoding="utf-8") as f:
     ocr = f.read().strip()
 with open(ref_path, encoding="utf-8") as f:
     ref = f.read().strip()
+with open(cat_path, encoding="utf-8") as f:
+    cat = f.read().strip()
 
 # WER/CER
 w = wer(ref, ocr)
 c = cer(ref, ocr)
+# Jaccard bag-of-words
+jacc = jaccard_words(ref, ocr)
+jacc_multi = jaccard_multiset(ref, ocr)
 # Structure
 stats_ocr = get_stats(ocr)
 stats_ref = get_stats(ref)
@@ -46,17 +67,22 @@ composantes = [
     min(ratios[5], 1/ratios[5]) if ratios[5] else 0, # ratio quest
     max(0, 1-abs(delta_punct)), # plus delta petit, mieux c’est
 ]
-# Score moyen (à adapter/pondérer)
-score_global = sum(composantes)/len(composantes)
+# # Score moyen (à adapter/pondérer)
+# score_global = sum(composantes)/len(composantes)
 
+# print(
+#     f"{base},{w:.4f},{c:.4f},{jacc:.4f},{jacc_multi:.4f},"
+#     f"{stats_ref[0]},{stats_ocr[0]},{ratios[0]},"
+#     f"{stats_ref[1]},{stats_ocr[1]},{ratios[1]},"
+#     f"{stats_ref[2]},{stats_ocr[2]},{ratios[2]},"
+#     f"{stats_ref[3]},{stats_ocr[3]},{ratios[3]},"
+#     f"{stats_ref[4]},{stats_ocr[4]},{ratios[4]},"
+#     f"{stats_ref[5]},{stats_ocr[5]},{ratios[5]},"
+#     f"{stats_ref[6]},{stats_ocr[6]},{ratios[6]},"
+#     f"{score_global}"
+# )
+
+ratios_mean = sum(composantes[2:7])/len(composantes[2:7])
 print(
-    f"{base},{w:.4f},{c:.4f},"
-    f"{stats_ref[0]},{stats_ocr[0]},{ratios[0]},"
-    f"{stats_ref[1]},{stats_ocr[1]},{ratios[1]},"
-    f"{stats_ref[2]},{stats_ocr[2]},{ratios[2]},"
-    f"{stats_ref[3]},{stats_ocr[3]},{ratios[3]},"
-    f"{stats_ref[4]},{stats_ocr[4]},{ratios[4]},"
-    f"{stats_ref[5]},{stats_ocr[5]},{ratios[5]},"
-    f"{stats_ref[6]},{stats_ocr[6]},{ratios[6]},"
-    f"{score_global}"
+    f"{base},{cat},{c:.2f},{jacc_multi:.2f},{ratios_mean:.2f}"
 )
