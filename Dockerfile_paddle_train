@@ -1,0 +1,56 @@
+# Dockerfile_paddle_train
+FROM paddleocr-model:latest
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Europe/Paris \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /workspace
+
+# Outils utiles
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    imagemagick rsync jq && \
+    rm -rf /var/lib/apt/lists/*
+
+# Scripts pipeline
+COPY OCR/latin_PP-OCRv3_rec.yml    /workspace/latin_PP-OCRv3_rec.yml
+COPY OCR/tune_data_paddle_ocr.sh    /tools/tune_data_paddle_ocr.sh
+COPY OCR/launch_ocr_train.sh        /usr/local/bin/launch_ocr_train.sh
+COPY OCR/scripts/                   /workspace/scripts/
+COPY OCR/latin_dict.txt /workspace/dicts/latin_dict.txt
+
+# Normaliser fins de lignes & rendre exécutables
+RUN sed -i 's/\r$//' /tools/tune_data_paddle_ocr.sh /usr/local/bin/launch_ocr_train.sh && \
+    find /workspace/scripts -type f -name "*.py" -exec sed -i 's/\r$//' {} \; && \
+    chmod +x /tools/tune_data_paddle_ocr.sh /usr/local/bin/launch_ocr_train.sh
+
+# -- Activer le passage des cibles au modèle (MultiHead a besoin de targets)
+RUN python3 - <<'PY'
+import re, io
+p = "/opt/PaddleOCR/tools/program.py"
+s = open(p, "r", encoding="utf-8").read()
+
+# Entraînement
+s = re.sub(r"preds\s*=\s*model\(\s*images\s*\)",
+           "preds = model(images, batch)", s)
+
+# Évaluation (selon version, plusieurs formes existent)
+s = re.sub(r"model\(\s*images\s*,\s*cal_loss\s*=\s*False\s*\)",
+           "model(images, batch, cal_loss=False)", s)
+s = re.sub(r"model\(\s*images\s*,\s*cal_metric\s*=\s*True\s*\)",
+           "model(images, batch, cal_metric=True)", s)
+s = re.sub(r"model\(\s*images\s*,\s*cal_metric\s*=\s*False\s*\)",
+           "model(images, batch, cal_metric=False)", s)
+
+open(p, "w", encoding="utf-8").write(s)
+print("Patched:", p)
+PY
+
+# Vars minimales
+# CONFIG : chemin du YAML complet et cohérent
+ENV CONFIG=/workspace/latin_PP-OCRv3_rec.yml \
+    BASE_DIR=/workspace/project
+
+VOLUME ["/workspace/project"]
+
+ENTRYPOINT ["/usr/local/bin/launch_ocr_train.sh"]
