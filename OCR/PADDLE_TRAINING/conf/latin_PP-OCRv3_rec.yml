@@ -1,0 +1,104 @@
+Global:
+  debug: True
+  use_gpu: True
+  epoch_num: 15
+  log_smooth_window: 20
+  print_batch_step: 10
+  save_model_dir: ./output/latin_ppocrv3
+  save_epoch_step: 1
+  eval_batch_step: [0, 1000]
+  cal_metric_during_train: True
+
+  # IMPORTANT : on charge le pré-entraîné de l’image, pas un checkpoint local
+  pretrained_model: /models/ppocrv3/latin/train/latest
+  checkpoints: null
+
+  # Charset contrôlé par ton dataset (un char/ligne). Laisse ce chemin !
+  character_dict_path: /workspace/data/charset.txt
+  use_space_char: True
+  max_text_length: 256
+
+  # Chemins utilisés par launch_ocr_train.sh (symlink /workspace/data → project/data)
+  save_res_path: ./output/rec/predicts_ppocrv3_latin.txt
+  distributed: False
+  use_visualdl: False
+
+Architecture:
+  model_type: rec
+  algorithm: SVTR_LCNet
+
+  Backbone:
+    name: PPLCNetV3
+    scale: 0.5
+
+  Transform: null
+
+  Neck:
+    name: SequenceEncoder
+    encoder_type: svtr
+    dims: 256
+    hidden_dims: 256
+    depth: 2
+    use_guide: True
+
+  Head:
+    name: CTCHead
+    in_channels: 256
+    fc_decay: 1e-5
+
+Loss:
+  name: CTCLoss
+
+PostProcess:
+  name: CTCLabelDecode
+
+Metric:
+  name: RecMetric
+  main_indicator: norm_edit_dis
+  ignore_space: True
+
+Train:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /workspace/data
+    label_file_list: ["/workspace/data/train.txt"]
+    transforms:
+      - DecodeImage: { img_mode: BGR, channel_first: False }
+      - RecAug: null
+      - CTCLabelEncode: null
+      - RecResizeImg: { image_shape: [3, 48, 320] }  # **clé** : cohérent prétrain
+      - KeepKeys: { keep_keys: [ "image", "label", "length", "valid_ratio" ] }
+  loader:
+    shuffle: True
+    batch_size_per_card: 96
+    drop_last: True
+    num_workers: 8
+
+Eval:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /workspace/data
+    label_file_list: ["/workspace/data/val.txt"]
+    transforms:
+      - DecodeImage: { img_mode: BGR, channel_first: False }
+      - RecAug: null
+      - CTCLabelEncode: null
+      - RecResizeImg: { image_shape: [3, 48, 320] }
+      - KeepKeys: { keep_keys: [ "image", "label", "length", "valid_ratio" ] }
+  loader:
+    shuffle: False
+    batch_size_per_card: 8
+    drop_last: False
+    num_workers: 1
+
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    name: Cosine
+    learning_rate: 0.001
+    warmup_epoch: 1
+  regularizer:
+    name: L2
+    factor: 3.0e-5

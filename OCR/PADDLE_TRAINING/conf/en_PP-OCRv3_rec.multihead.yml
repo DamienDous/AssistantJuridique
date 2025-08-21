@@ -1,0 +1,95 @@
+Global:
+  debug: True
+  use_gpu: True
+  epoch_num: 5
+  cal_metric_during_train: True
+  character_dict_path: /workspace/data/charset.txt
+  use_space_char: True
+  print_batch_step: 100
+  eval_batch_step: [0, 2000]
+  save_epoch_step: 3
+  save_model_dir: ./output/v3_en_mobile
+  save_res_path: ./output/rec/predicts_ppocrv3_en.txt
+  max_text_length: 256
+  use_visualdl: False
+  log_smooth_window: 20
+
+Architecture:
+  model_type: rec
+  algorithm: CRNN
+  Transform: null
+  Backbone:
+    name: MobileNetV1Enhance
+    scale: 0.5
+    last_conv_stride: [1, 2]
+    last_pool_type: avg
+    last_pool_kernel_size: [2, 2]
+  Head:
+    name: MultiHead
+    head_list:
+      - CTCHead:
+          Head: { fc_decay: 1.0e-05 }
+          Neck:
+            name: rnn          # ← surtout PAS SequenceEncoder ici
+            dims: 64
+            depth: 2
+            hidden_dims: 120
+            use_guide: True
+      - SARHead:
+          enc_dim: 128         # 2 * dims (= 2*64) avec rnn bi-dir
+          max_text_length: 256
+
+Loss:
+  name: MultiLoss
+  loss_config_list:
+    - CTCLoss: {}
+    - SARLoss: {}
+
+PostProcess:
+  name: CTCLabelDecode   # OK, on garde pour l’éval CTC
+
+Metric:
+  name: RecMetric
+  main_indicator: acc
+  ignore_space: False
+
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr: { name: Cosine, learning_rate: 0.001, warmup_epoch: 0 }
+  regularizer: { name: L2, factor: 3.0e-05 }
+
+Train:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /workspace/data
+    label_file_list: [/workspace/data/train.txt]
+    transforms:
+      - DecodeImage: {img_mode: BGR, channel_first: False}
+      - RecAug: null
+      - MultiLabelEncode: null
+      - RecResizeImg: {image_shape: [3, 48, 1024]}
+      - KeepKeys: {keep_keys: ['image','label_ctc','label_sar','length','valid_ratio']}
+  loader:
+    shuffle: True
+    batch_size_per_card: 16
+    drop_last: True
+    num_workers: 0
+
+Eval:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /workspace/data
+    label_file_list: [/workspace/data/val.txt]
+    transforms:
+      - DecodeImage: {img_mode: BGR, channel_first: False}
+      - RecAug: null
+      - MultiLabelEncode: null
+      - RecResizeImg: {image_shape: [3, 48, 1024]}
+      - KeepKeys: {keep_keys: ['image','label_ctc','label_sar','length','valid_ratio']}
+  loader:
+    shuffle: False
+    batch_size_per_card: 8
+    drop_last: False
+    num_workers: 0

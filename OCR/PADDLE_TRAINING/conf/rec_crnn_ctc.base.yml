@@ -1,0 +1,110 @@
+Global:
+  debug: False
+  use_gpu: True
+  distributed: False
+
+  # === chemins / sorties ===
+  character_dict_path: /workspace/data/charset.txt
+  save_model_dir: ./output/crnn_mv3_ctc        # <-- requis
+  save_epoch_step: 1
+  print_batch_step: 100
+  save_res_path: ./output/rec/predicts_crnn_mv3_ctc.txt
+  use_visualdl: False
+
+  # === longueur / espaces ===
+  max_text_length: 256
+  use_space_char: True
+
+  # === entraînement vs checkpoints ===
+  # En TRAIN: on part de poids pré-entraînés (et PAS Global.checkpoints)
+  pretrained_model: /models/crnn_mv3_ctc/train/latest.pdparams
+  checkpoints: null
+
+  # === mixte ===
+  epoch_num: 15
+  cal_metric_during_train: True
+  eval_batch_step: [0, 1000]
+  log_smooth_window: 20
+
+# ===== Modèle =====
+Architecture:
+  model_type: rec
+  algorithm: CRNN
+  Transform:
+  Backbone:
+    name: MobileNetV3
+    scale: 0.5
+    last_conv_stride: [1, 2]
+    last_pool_type: avg
+    last_pool_kernel_size: [2, 2]
+    model_name: large
+  Neck:
+    name: SequenceEncoder
+    encoder_type: rnn
+    dims: 120
+    hidden_size: 96
+    hidden_dims: 96
+    depth: 2
+    use_guide: True
+  Head:
+    name: CTCHead
+    Head:
+      fc_decay: 1e-5
+
+Loss:
+  name: CTCLoss
+
+PostProcess:
+  name: CTCLabelDecode
+
+Metric:
+  name: RecMetric
+  main_indicator: norm_edit_dis
+  ignore_space: True
+
+# ===== Données =====
+Train:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /workspace/data
+    label_file_list: [/workspace/data/train.txt]
+    transforms:
+      - DecodeImage: {img_mode: BGR, channel_first: False}
+      - RecAug:
+      - CTCLabelEncode:
+      - RecResizeImg: {image_shape: [3, 48, 768]}  # hauteur 48, largeur max 768
+      - KeepKeys: {keep_keys: [image, label, length, valid_ratio]}
+  loader:
+    shuffle: True
+    drop_last: True
+    batch_size_per_card: 96
+    num_workers: 8
+
+Eval:
+  dataset:
+    name: SimpleDataSet
+    data_dir: /workspace/data
+    label_file_list: [/workspace/data/val.txt]
+    transforms:
+      - DecodeImage: {img_mode: BGR, channel_first: False}
+      - CTCLabelEncode:
+      - RecResizeImg: {image_shape: [3, 48, 768]}
+      - KeepKeys: {keep_keys: [image, label, length, valid_ratio]}
+  loader:
+    shuffle: False
+    drop_last: False
+    batch_size_per_card: 8
+    num_workers: 1
+
+# ===== Optim =====
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    name: Cosine
+    learning_rate: 0.001
+    warmup_epoch: 1
+  regularizer:
+    name: L2
+    factor: 3e-5
