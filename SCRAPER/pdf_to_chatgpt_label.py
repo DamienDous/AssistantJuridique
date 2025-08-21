@@ -30,104 +30,36 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ——————————————
 
 # Chemin vers le PDF à traiter (un seul PDF à la fois pour ce script)
-PDF_FOLDER_PATH = r".\traitement_lot\test_chatgpt_pdf"
+PDF_FOLDER_PATH = r".\DB\png_test\result"
 
 # Langue OCR (fra pour français, eng pour anglais, etc.)
 TESSERACT_LANG = "fra"
 
-# Dossier temporaire pour stocker les images rasterisées (OCR)
-TMP_IMG_FOLDER = r".\traitement_lot\images"
-
 # Fichier intermédiaire pour écrire le prompt que l’on enverra à ChatGPT
-PROMPT_FOLDER = r".\traitement_lot\prompt"
-JSON_FOLDER = r".\traitement_lot\json"
+JSON_FOLDER = r".\DB\png_test\json"
 # Fichier de sortie pour la réponse de ChatGPT
-OUTPUT_RESPONSE_FILE = r".\chatgpt_reponse.txt"
-
-# ——————————————
-# FONCTIONS D’EXTRACTION DE TEXTE
-# ——————————————
-
-def extraire_texte_pdf(pdf_path):
-	"""
-	Essaie d’abord d’extraire du texte avec PyMuPDF (fitz).
-	Si aucune page ne contient de texte (ou si fitz renvoie une extraction vide),
-	on passe en OCR image → tesseract.
-	"""
-	try:
-		doc = fitz.open(pdf_path)
-	except Exception as e:
-		print(f"❌ Erreur à l’ouverture du PDF via fitz: {e}")
-		return ""
-
-	texte_raw = ""
-	for page in doc:
-		texte_raw += page.get_text("text") + "\n"
-
-	# Si on obtient un résultat non vide, on le retourne
-	if texte_raw.strip():
-		print("✅ Extraction de texte réussie avec PyMuPDF (PDF natif).")
-		return texte_raw
-
-	# Sinon, on passe en OCR (PDF scanné ou texte non détectable)
-	print("ℹ️ Pas de texte détectable directement, on passe en OCR (images).")
-	return re.sub(r'\s+', ' ', extraire_texte_par_ocr(pdf_path)).strip()
-
-def extraire_texte_par_ocr(pdf_path):
-	"""
-	1) Convertit chaque page du PDF en image (via pdf2image).  
-	2) Applique pytesseract sur chaque image.  
-	3) Retourne le texte concaténé.
-	"""
-	if not os.path.isdir(TMP_IMG_FOLDER):
-		os.makedirs(TMP_IMG_FOLDER, exist_ok=True)
-
-	print(f"📄 Conversion du PDF en images dans '{TMP_IMG_FOLDER}' …")
-	try:
-		pages = convert_from_path(pdf_path, dpi=300, fmt="png", output_folder=TMP_IMG_FOLDER, thread_count=2)
-	except Exception as e:
-		print(f"❌ Erreur lors de la conversion PDF→images: {e}")
-		return ""
-
-	texte_total = ""
-	for idx, page_img in enumerate(pages, start=1):
-		img_path = os.path.join(TMP_IMG_FOLDER, f"page_{idx:03d}.png")
-		page_img.save(img_path, "PNG")
-		# print(f"✅ Page {idx} rasterisée => {img_path}")
-
-		# OCR sur l’image
-		try:
-			texte_page = pytesseract.image_to_string(Image.open(img_path), lang=TESSERACT_LANG)
-			# print(f"   📝 OCR effectué sur page_{idx:03d}.png (longueur ~ {len(texte_page)} caractères).")
-		except Exception as e:
-			print(f"   ❌ Erreur OCR page {idx}: {e}")
-			texte_page = ""
-
-		texte_total += texte_page + "\n\n"
-
-	return texte_total
+OUTPUT_RESPONSE_FILE = r".\DB\png_test\chatgpt_reponse.txt"
 
 # ——————————————
 # GÉNÉRATION DU PROMPT
 # ——————————————
 def generer_prompt_cas_pratique_json():
-	entete = (
-			"Le but de cet exercice est de classifier chaque phrase de ce cas d'étude dans les catégories : "
-			"Faits, Problématique, Règles, Analyse ou Solution. "
-			"Convertis **exactement** ce texte en JSON, **SANS AUCUNE OMISSION, RÉFORMULATION ni RÉSUMÉ**. "
-			"Tu dois utiliser exactement les mêmes informations en ne faisant **AUCUN CHANGEMENT**. "
-			"Convertis selon le schéma suivant: "
-			"{ "
-			"   'Faits': ['Fait 1', 'Fait 2', 'Fait 3'], "
-			"   'Problématique': 'Phrases pour la problématique juridique ici.', "
-			"   'Règles': ['Règle 1', 'Règle 2', 'Règle 3'], "
-			"   'Analyse': ['Analyse 1', 'Analyse 2'], "
-			"   'Solution': 'Phrases pour la solution finale ici.' "
-			"}"
-			"**NE MODIFIE RIEN**, ne retourne que du JSON. "
-			"Texte à convertir (**NE CHANGE RIEN**) :"
-			)
-	return entete
+    entete = (
+        "Indique strictement : "
+        "- UN si le texte contient un seul cas pratique juridique exploitable, "
+        "- PLUSIEURS si le texte contient plusieurs cas pratiques juridiques exploitables, "
+        "- AUCUN si le texte ne contient aucun cas pratique juridique exploitable. "
+        "Ensuite, pour chaque cas pratique identifié, indique uniquement : "
+        "- CORRIGÉ si le cas pratique contient sa correction ou explication, "
+        "- NON CORRIGÉ si le cas pratique ne contient que l’énoncé. "
+        "Formate ta réponse ainsi (sans rien d’autre) : "
+        "UN ou PLUSIEURS ou AUCUN "
+        "Pour chaque cas pratique, affiche simplement : CORRIGÉ ou NON CORRIGÉ "
+        "Ne donne aucune explication, aucun résumé, aucune phrase superflue. "
+        "En plus de ça, pour chaque cas pratique identifié, affiche les 10 derniers mots du texte du cas pratique. "
+        "Texte : "
+    )
+    return entete
 
 def ecrire_prompt_dans_fichier(prompt, chemin):
 	with open(chemin, "w", encoding="utf-8") as f:
@@ -168,7 +100,7 @@ def init_driver_with_proxy(proxy_ip):
 	
 	# Configuration utilisateur, user-agent, etc.
 	user_agent = generer_user_agent()  # Assure-toi que cette fonction génère un user-agent correct
-	options.add_argument(f"user-agent={user_agent}")
+	options.add_argument(f"--user-agent={user_agent}")
 
 	# Crée le driver Chrome avec les options définies
 	driver = uc.Chrome(service=Service(ChromeDriverManager().install()), options=options)
@@ -185,6 +117,18 @@ def init_driver_with_proxy(proxy_ip):
 		},
 	)
 
+	return driver
+
+def init_driver_with_profile(profile_path=None, profile_dir="Default"):
+	profile_path = r"C:\temp\selenium_profile"
+	os.makedirs(profile_path, exist_ok=True)
+	options = uc.ChromeOptions()
+	options.add_argument("--window-size=1280,900")
+	options.add_argument(f'--user-data-dir={profile_path}')
+	# options.add_argument("--disable-blink-features=AutomationControlled")
+	# options.add_argument(f'--profile-directory={profile_dir}')  # <-- AJOUT INDISPENSABLE
+	driver = uc.Chrome(options=options)
+	driver.get("https://chat.openai.com/")
 	return driver
 
 def click_when_visible(wait, by, selector, retries=3):
@@ -300,16 +244,12 @@ def attendre_bouton_copier_complexe(driver, nombre_attendu_boutons, timeout=60, 
 			bouton_copier = boutons[-1]
 			driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", bouton_copier)
 			time.sleep(1.5)
-
-			# Vérifie si le bouton est cliquable avant de le retourner
-			WebDriverWait(driver, timeout).until(EC.element_to_be_clickable(bouton_copier))
-
+			WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.XPATH, xpath_cible)))
 			print(f"✅ {len(boutons)} boutons détectés, dernier bouton prêt à être cliqué.")
 			return bouton_copier
 
 		if time.time() - start_time > timeout:
 			raise TimeoutException(f"⏳ Timeout : {len(boutons)} boutons trouvés, attendu au moins {nombre_attendu_boutons}.")
-
 		time.sleep(poll_interval)
 
 def verifier_ou_reconnecter(driver, timeout=10):
@@ -379,15 +319,15 @@ def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_r
 	time.sleep(random.uniform(1, 1.5))  # Pause après l'envoi
 
 	print("▶ Prompt envoyé à ChatGPT.")
-	time.sleep(15)  # Attente pour la réponse de ChatGPT
+	time.sleep(3)  # Attente pour la réponse de ChatGPT
 
 	# Vérifier si la page a été déconnectée, si oui, la relancer
-	if verifier_ou_reconnecter(driver):
-		return envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_reponse, timeout)
+	# if verifier_ou_reconnecter(driver):
+	# 	return envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_reponse, timeout)
 
 	print("attente réponse gpt -> numero_reponse : ", numero_reponse)
 	bouton_copier = attendre_bouton_copier_complexe(driver, nombre_attendu_boutons=numero_reponse)
-	time.sleep(2)
+	time.sleep(1)
 
 	try:
 		bouton_copier.click()
@@ -397,30 +337,35 @@ def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_r
 		driver.execute_script("arguments[0].click();", bouton_copier)
 		print("✅ Bouton 'Copier' cliqué via JavaScript.")
 
-	time.sleep(3)
+	time.sleep(2)
 
-	# Lire le contenu du presse-papiers
-	json_copie = pyperclip.paste()
-
-	pattern = r"json\s*(\{.*?\})\s*"
-	match = re.search(pattern, json_copie, re.DOTALL)
-
-	if match:
-		json_copie_texte = match.group(1)
-		print("JSON récupéré")
+	for _ in range(3):  # Sécurité pour laisser le temps au clipboard
+		texte = pyperclip.paste()
+		if texte.strip():
+			break
+		time.sleep(1)
 	else:
-		print("Texte récupéré")
-		json_copie_texte = json_copie
+		print("⚠️ Clipboard vide après 3 essais.")
+
+	# pattern = r"json\s*(\{.*?\})\s*"
+	# match = re.search(pattern, json_copie, re.DOTALL)
+
+	# if match:
+	# 	json_copie_texte = match.group(1)
+	# 	print("JSON récupéré")
+	# else:
+	# 	print("Texte récupéré")
+	# 	json_copie_texte = json_copie
 	
-	print("👉 TAILLE JSON: ", len(json_copie_texte))
+	print("👉 TAILLE JSON: ", len(texte))
 
 	# Sauvegarder dans un fichier
 	with open(fichier_sortie, "w", encoding="utf-8") as f:
-		f.write(json_copie_texte)
+		f.write(texte)
 	
-	print(f"✅ JSON sauvegardé dans '{fichier_sortie}' (taille {len(json_copie_texte)} caractères).")
+	print(f"✅ JSON sauvegardé dans '{fichier_sortie}' (taille {len(texte)} caractères).")
 	
-	return ""
+	return
 
 # ——————————————
 # PROGRAMME PRINCIPAL
@@ -428,13 +373,14 @@ def envoyer_prompt_et_recuperer_reponse(driver, prompt, fichier_sortie, numero_r
 
 def main():
 	# Lancer Chrome + Selenium et se connecter à ChatGPT
-	proxy_ip = "http://51.81.245.3:17981"
-	driver = init_driver_with_proxy(proxy_ip)
+	profile_path = r"C:\Users\damien_dous\AppData\Local\Google\Chrome\User Data"
+	profile_dir = "Profile 2"
+	driver = init_driver_with_profile(profile_path, profile_dir)
 	try:
-		succes_connexion = se_connecter_chatgpt(driver, EMAIL, PASSWORD)
-		if not succes_connexion:
-			return
-		time.sleep(2)
+		# succes_connexion = se_connecter_chatgpt(driver, EMAIL, PASSWORD)
+		# if not succes_connexion:
+		# 	return
+		# time.sleep(2)
 
 		# Connexion
 		chat_url = "https://chatgpt.com/"
@@ -442,48 +388,34 @@ def main():
 		time.sleep(2)
 
 		# Attente et vérification
-		wait = WebDriverWait(driver, 30)
+		# wait = WebDriverWait(driver, 30)
 		
-		cpt = 1
 
 		for i, nom_fichier in enumerate(os.listdir(PDF_FOLDER_PATH), start=1):
 			chemin_complet = os.path.join(PDF_FOLDER_PATH, nom_fichier)
 			nom_sans_ext, extension = os.path.splitext(nom_fichier)
-			txt_path = PROMPT_FOLDER + "/" + nom_sans_ext + ".txt"
+			print("✅ ", chemin_complet, " existe")
+			with open(chemin_complet, "r", encoding="utf-8") as f:
+				texte_complet = f.read()
 			
-			# On charge le texte du pdf s'il a déjà été créer
-			if os.path.isfile(txt_path):
-				print("✅ ", txt_path, " existe")
-				with open(txt_path, "r", encoding="utf-8") as f:
-					texte_complet = f.read()
-			else:
-				# Sinon on extrait le texte du pdf par OCR
-				print("⚠️ ", txt_path, " n'existe pas")
-				print(f"📄 Extraction du texte depuis : {chemin_complet} …")
-				texte_complet = extraire_texte_pdf(chemin_complet)
-				if not texte_complet.strip():
-					print("❗ Aucune donnée textuelle récupérée du PDF.")
-					return
-				# On écrit le texte récupéré par OCR pour ne pas avoir à le refaire
-				ecrire_prompt_dans_fichier(texte_complet, txt_path)
-				
+			print("👉 TAILLE PROMPT: ", len(texte_complet))
+
 			json_path = JSON_FOLDER + "/" + nom_sans_ext + ".json"
 			# On vérifie que le texte n'a pas déjà était prompté
 			if os.path.isfile(json_path):
 				print("⚠️ Cas pratique déjà prompté")
 				continue
 			
-			print("👉 TAILLE PROMPT: ", len(texte_complet))
-
-			# Traiter les fichiers de taille inférieur à 5000 char 
-			if len(texte_complet) > 5000:
-				print("❗ cas d'étude trop grand : > 5000 caractères")
+			# Traiter les fichiers de taille inférieur à 130000 char 
+			if len(texte_complet) > 130000:
+				print("❗ cas d'étude trop grand : > 130000 caractères")
 				continue
 
 			# Initialisation prompt pour création json
 			prompt_json = generer_prompt_cas_pratique_json() + " " + texte_complet
-			reponse_enrichie = envoyer_prompt_et_recuperer_reponse(driver, prompt_json, json_path, numero_reponse=cpt)
-			cpt += 1
+			xpath_cible = "//div[contains(@class,'flex min-h-[46px] justify-start')]//button[@aria-label='Copier' and contains(@class,'text-token-text-secondary')]"
+			nb_boutons_avant = len(driver.find_elements(By.XPATH, xpath_cible))
+			envoyer_prompt_et_recuperer_reponse(driver, prompt_json, json_path, numero_reponse=nb_boutons_avant + 1)
 		
 		time.sleep(100)
 	finally:
