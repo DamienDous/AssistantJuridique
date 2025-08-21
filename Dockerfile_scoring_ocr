@@ -1,0 +1,94 @@
+FROM debian:bookworm
+
+# 0) Locale propre (évite des surprises python/awk)
+ENV LANG=C.UTF-8
+
+# 1. Déps système (ajoute bash + dev libs tesseract; tu peux retirer git si tu ne l’utilises nulle part)
+RUN apt-get update && apt-get install -y python3 python3-pip
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    unzip \
+    wget \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-fra \
+    libtesseract-dev \
+    libleptonica-dev \
+    unpaper \
+    ghostscript \
+    curl \
+    openjdk-17-jre-headless \
+    ca-certificates \
+    build-essential \
+    pkg-config \
+    libpng-dev \
+    libjpeg-dev \
+    libtiff-dev \
+    libwebp-dev \
+    libopenjp2-7-dev \
+    libheif-dev \
+    libde265-dev \
+    libraw-dev \
+    jq \
+    # git \   # <- COMME OPTION : commente si tu n’en as pas besoin
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Tesseract 'best' models (au moins FRA) ---
+RUN mkdir -p /opt/tessdata_best && \
+    wget -O /opt/tessdata_best/fra.traineddata \
+      https://github.com/tesseract-ocr/tessdata_best/raw/main/fra.traineddata
+
+# (optionnel) pointer par défaut TESSDATA sur le dossier 'best'
+ENV TESSDATA=/opt/tessdata_best
+
+# 2. Py deps
+RUN pip install --break-system-packages --no-cache-dir \
+    pillow numpy ocrmypdf language_tool_python nltk pyspellchecker jiwer
+RUN mkdir -p /usr/share/nltk_data && \
+    python3 -c "import nltk; nltk.download('punkt', download_dir='/usr/share/nltk_data')" && \
+    python3 -c "import nltk; nltk.download('punkt_tab', download_dir='/usr/share/nltk_data')"
+
+# 3. Dossiers
+RUN mkdir -p /data /data/out/pdf /data/out/txt /data/logs /tools
+
+# 3bis. LanguageTool (ok)
+RUN mkdir -p /tools/lt && \
+    curl -L -o /tools/lt.zip https://languagetool.org/download/LanguageTool-6.4.zip && \
+    unzip /tools/lt.zip -d /tools/lt && rm /tools/lt.zip
+
+# 3ter. (Option) ImageMagick 7: tu peux garder ta compile, sinon => apt-get install imagemagick
+# --- TON BLOC DE COMPILATION GARDÉ TEL QUEL ---
+RUN curl -L https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz -C /tmp && \
+    cd /tmp/ImageMagick-* && ./configure && make -j"$(nproc)" && make install && ldconfig && \
+    cd / && rm -rf /tmp/ImageMagick-*
+
+# 4. Scripts + tesstrain déjà inclus (pas de git au runtime)
+COPY OCR/ocr_script.sh                          /tools/ocr_script.sh
+COPY CLEAN/read_and_crop.py                     /tools/read_and_crop.py
+COPY OCR/clean_text.sh                          /tools/clean_text.sh
+COPY OCR/langage_tool_correction.py             /tools/langage_tool_correction.py
+COPY OCR/dico_juridique.txt                     /app/dico_juridique.txt
+COPY OCR/batch_ocr_tester.sh                    /tools/batch_ocr_tester.sh
+COPY OCR/variant_ocr_tester.sh                  /tools/variant_ocr_tester.sh
+COPY OCR/launch_all.sh                          /tools/launch_all.sh
+COPY OCR/vote_ocr_paragraphe.py                 /tools/vote_ocr_paragraphe.py
+COPY OCR/ocr_postprocess_all.py                 /tools/ocr_postprocess_all.py
+COPY OCR/score_ocr.py                           /tools/score_ocr.py
+COPY OCR/tune_data_tess_ocr.sh                  /tools/tune_data_tess_ocr.sh
+# Récupère tesstrain sans git
+RUN curl -L -o /tmp/tesstrain.zip https://github.com/tesseract-ocr/tesstrain/archive/refs/heads/master.zip \
+ && unzip -q /tmp/tesstrain.zip -d /tools \
+ && mv /tools/tesstrain-* /tools/tesstrain \
+ && rm /tmp/tesstrain.zip
+
+# 4bis. Normaliser EOL Windows -> LF + droits
+RUN find /tools -type f -name "*.sh" -exec sed -i 's/\r$//' {} + && \
+    chmod +x /tools/*.sh
+
+# 5. TESSDATA visible (chemin Debian)
+ENV TESSDATA=/usr/share/tesseract-ocr/5/tessdata
+
+# 6. Workdir + Entrypoint
+WORKDIR /
+ENTRYPOINT ["/tools/launch_all.sh"]
+CMD ["/data", "/data/out", "16"]
