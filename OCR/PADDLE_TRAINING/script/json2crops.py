@@ -146,7 +146,7 @@ def main():
     pairs = []  # (rel_path, text)
     warn_missing = warn_empty = 0
     created = skipped_existing = 0
-
+    print(len(imgs))
     for ip in imgs:
         jp = find_json_for_image(ip, idx_jsonstem, idx_origstem, idx_ph)
         if jp is None:
