@@ -5,8 +5,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Paris \
     PYTHONUNBUFFERED=1
 
-WORKDIR /workspace
-
 # Outils utiles
 RUN apt-get update && apt-get install -y --no-install-recommends \
     imagemagick rsync jq && \
@@ -50,7 +48,12 @@ PY
 # CONFIG : chemin du YAML complet et cohérent
 ENV CONFIG=/workspace/latin_PP-OCRv3_rec.yml \
     BASE_DIR=/workspace/project
+# Copie les scripts et les fichiers de configuration
+COPY OCR/PADDLE_TRAINING/   /workspace/
 
-VOLUME ["/workspace/project"]
+# Normaliser fins de lignes & rendre exécutables pour TOUS les .sh et .py
+RUN find /workspace -type f \( -name "*.sh" -o -name "*.py" \) -exec sed -i 's/\r$//' {} + \
+    && find /workspace -type f -name "*.sh" -exec chmod +x {} +
 
-ENTRYPOINT ["/usr/local/bin/launch_ocr_train.sh"]
+WORKDIR /workspace/
+ENTRYPOINT ["script/launch_ocr_train.sh"]
