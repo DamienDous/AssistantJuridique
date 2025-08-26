@@ -7,7 +7,7 @@ trap 'echo "[ERROR] ${BASH_SOURCE[0]}:${LINENO} -> ${BASH_COMMAND}" >&2' ERR
 : "${FORCE_DATA:=0}"
 
 # --- Entrée (BASE_DIR passé en arg 1) ---
-BASE_DIR="${1:-${BASE_DIR:-/workspace/data}}"
+BASE_DIR="${1:-/workspace/data}"
 IMG_DIR="$BASE_DIR/img"
 ANNO_DIR="$BASE_DIR/anno"
 
@@ -44,7 +44,7 @@ python3 script/json2crops.py \
 
 # 2) Normalisation & validation (avec cache)
 echo "▶ Normalisation & validation dataset (rebuild)"
-python3 /workspace/script/normalize_and_validate_dataset.py --base "$BASE_DIR" --config "$CONFIG" \
+python3 script/normalize_and_validate_dataset.py --base "$BASE_DIR" --config "$CONFIG" \
   --char "$DICT_LATIN" --max_len 256 --expect_width 320 --hstride 4 --drop_too_long
 
 pre_end=$(date +%s)
