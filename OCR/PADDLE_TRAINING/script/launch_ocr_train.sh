@@ -10,7 +10,6 @@ trap 'echo "[ERROR] ${BASH_SOURCE[0]}:${LINENO} -> ${BASH_COMMAND}" >&2' ERR
 BASE_DIR="${1:-${BASE_DIR:-/workspace/data}}"
 IMG_DIR="$BASE_DIR/img"
 ANNO_DIR="$BASE_DIR/anno"
-DATA_DIR="$BASE_DIR/data"
 
 # Pré-entraîné par défaut = LATIN PP-OCRv3
 : "${PRETRAIN_REC_PATH:=/models/ppocrv3/latin/train/latest.pdparams}"
@@ -26,12 +25,12 @@ echo "FORCE_DATA  : $FORCE_DATA"
 start_time=$(date +%s)
 
 # Préparer l’arborescence
-mkdir -p "$IMG_DIR" "$ANNO_DIR" "$DATA_DIR"
+mkdir -p "$IMG_DIR" "$ANNO_DIR"
 
 # Purge du staging si demandé
-if [ "$FORCE_DATA" = "1" ]; then
-  rm -rf "$DATA_DIR/crops" "$DATA_DIR/.cache" \
-         "$DATA_DIR/train.txt" "$DATA_DIR/val.txt"
+if [ "$FORCE_DATA" = "0" ]; then
+  rm -rf "$BASE_DIR/crops" "$BASE_DIR/.cache" \
+         "$BASE_DIR/train.txt" "$BASE_DIR/val.txt"
 fi
 
 # 1) Crops & labels
@@ -39,9 +38,9 @@ echo "▶ Extraction crops depuis JSON → $IMG_DIR"
 python3 script/json2crops.py \
   --json_dir "$ANNO_DIR" \
   --img_dir  "$IMG_DIR" \
-  --out_dir  "$DATA_DIR" \
+  --out_dir  "$BASE_DIR" \
   --incremental \
-  --cache_file "$DATA_DIR/.cache/json2crops.manifest.json"
+  --cache_file "$BASE_DIR/.cache/json2crops.manifest.json"
 
 # 2) Normalisation & validation (avec cache)
 echo "▶ Normalisation & validation dataset (rebuild)"
