@@ -177,7 +177,8 @@ def process_split(base, split, max_len, expect_width, hstride, drop_too_long, ch
 # ----------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--base', required=True, help="Répertoire dataset (avec train.txt, val.txt, charset.txt, crops/)")
+    ap.add_argument('--base', required=True, help="Répertoire dataset (avec train.txt, val.txt, crops/)")
+    ap.add_argument('--char', required=True, help="charset.txt")
     ap.add_argument('--config', default=None, help="Chemin YAML à inclure dans le fingerprint (optionnel)")
     ap.add_argument('--max_len', type=int, default=256)
     ap.add_argument('--expect_width', type=int, default=320)
@@ -191,7 +192,7 @@ def main():
     hash_file = os.path.join(cache_dir, 'norm.sha256')
 
     # Charger charset (si présent)
-    charset_path = os.path.join(base, "charset.txt")
+    charset_path = args.char
     charset = None
     if os.path.isfile(charset_path):
         try:

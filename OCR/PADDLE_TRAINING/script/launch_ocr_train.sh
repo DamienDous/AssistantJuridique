@@ -43,8 +43,8 @@ python3 script/json2crops.py \
 
 # 2) Normalisation & validation (avec cache)
 echo "▶ Normalisation & validation dataset (rebuild)"
-python3 script/normalize_and_validate_dataset.py --base "$DATA_DIR" --config "$CONFIG" \
-  --max_len 256 --expect_width 320 --hstride 4 --drop_too_long
+python3 /workspace/script/normalize_and_validate_dataset.py --base "$BASE_DIR" --config "$CONFIG" \
+  --char "$DICT_LATIN" --max_len 256 --expect_width 320 --hstride 4 --drop_too_long
 
 # 3) Entraînement (AUCUN override)
 export PYTHONFAULTHANDLER=1
