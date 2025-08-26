@@ -54,9 +54,8 @@ printf "\n⏱️ Temps de pré traitement : %02d:%02d:%02d\n" \
 
 # 3) Entraînement (AUCUN override)
 export PYTHONFAULTHANDLER=1
-cd /opt/PaddleOCR
 echo "▶ Lancement training (config-only)"
-python3 tools/train.py -c "$CONFIG"
+python3 /opt/PaddleOCR/tools/train.py -c "$CONFIG"
 
 train_end=$(date +%s)
 train_elapsed=$(( train_end - start_time ))
