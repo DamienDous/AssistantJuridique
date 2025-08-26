@@ -37,11 +37,6 @@ RUN set -eux; \
   ln -snf "$train_pd" /models/ppocrv3/latin/train/latest.pdparams; \
   echo ">> Symlink latin: /models/ppocrv3/latin/train/latest.pdparams -> $train_pd"
 
-# Dictionnaire LATIN officiel exposé dans l'image
-RUN mkdir -p /workspace/dicts && \
-    cp /opt/PaddleOCR/ppocr/utils/dict/latin_dict.txt /workspace/dicts/latin_dict.txt && \
-    echo ">> latin_dict.txt disponible sous /workspace/dicts"
-
 # Symlink robuste vers le meilleur checkpoint latin (.pdparams)
 RUN set -eux; \
   cd /models/ppocrv3/latin; \
@@ -53,10 +48,6 @@ RUN set -eux; \
   [ -n "$f" ] || { echo 'Aucun .pdparams trouvé dans /models/ppocrv3/latin/train'; ls -al train; exit 1; }; \
   ln -snf "$(basename "$f")" /models/ppocrv3/latin/train/latest.pdparams; \
   echo ">> Symlink OK: /models/ppocrv3/latin/train/latest.pdparams -> $(readlink -f /models/ppocrv3/latin/train/latest.pdparams)"
-
-# ENV par défaut (utilisés par le launch) — ***LATIN UNIQUEMENT***
-ENV PRETRAIN_REC_PATH=/models/ppocrv3/latin/train/latest.pdparams \
-    DICT_LATIN=/workspace/dicts/latin_dict.txt
 
 # Point par défaut
 WORKDIR /opt/PaddleOCR
