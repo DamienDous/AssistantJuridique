@@ -23,6 +23,8 @@ echo "BASE_DIR    : $BASE_DIR"
 echo "CONFIG      : $CONFIG"
 echo "FORCE_DATA  : $FORCE_DATA"
 
+start_time=$(date +%s)
+
 # Préparer l’arborescence
 mkdir -p "$IMG_DIR" "$ANNO_DIR" "$DATA_DIR"
 
@@ -46,8 +48,19 @@ echo "▶ Normalisation & validation dataset (rebuild)"
 python3 /workspace/script/normalize_and_validate_dataset.py --base "$BASE_DIR" --config "$CONFIG" \
   --char "$DICT_LATIN" --max_len 256 --expect_width 320 --hstride 4 --drop_too_long
 
+pre_end=$(date +%s)
+pre_elapsed=$(( pre_end - start_time ))
+printf "\n⏱️ Temps de pré traitement : %02d:%02d:%02d\n" \
+  $((pre_elapsed/3600)) $((pre_elapsed%3600/60)) $((pre_elapsed%60))
+
 # 3) Entraînement (AUCUN override)
 export PYTHONFAULTHANDLER=1
 cd /opt/PaddleOCR
 echo "▶ Lancement training (config-only)"
 python3 tools/train.py -c "$CONFIG"
+
+train_end=$(date +%s)
+train_elapsed=$(( train_end - start_time ))
+
+printf "\n⏱️ Temps d'exécution : %02d:%02d:%02d\n" \
+  $((train_elapsed/3600)) $((train_elapsed%3600/60)) $((train_elapsed%60))
