@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import argparse, os, json, random, hashlib, time
 from pathlib import Path
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
+# ----------------- ARGS -----------------
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json_dir", required=True)
@@ -10,12 +12,17 @@ def parse_args():
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--val_split", type=float, default=0.1)
     ap.add_argument("--maxlen", type=int, default=0, help="0=illimité")
-    # === CACHE / INCRÉMENTAL ===
     ap.add_argument("--incremental", action="store_true", help="Ne recroppe que les nouveaux/maj.")
     ap.add_argument("--force", action="store_true", help="Ignore le cache et régénère.")
     ap.add_argument("--cache_file", default=None, help="Chemin du manifest cache (json).")
+    # Nouveaux
+    ap.add_argument("--workers", type=int, default=0, help="0 = os.cpu_count()")
+    ap.add_argument("--save_format", choices=["png","jpg"], default="png")
+    ap.add_argument("--jpg_quality", type=int, default=95)
+    ap.add_argument("--png_compress", type=int, default=1)  # 0..9 (1 = rapide)
     return ap.parse_args()
 
+# ----------------- UTILS -----------------
 def file_sig(p: Path):
     try:
         st = p.stat()
@@ -110,6 +117,89 @@ def write_cache(cache_file: Path, payload: dict):
     with open(cache_file, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
+# ----------------- WORKER -----------------
+def process_one_image(task):
+    """
+    task = (ip_str, jp_str, out_dir_str, incremental, old_pairs_frozen, maxlen,
+            save_format, jpg_quality, png_compress)
+    """
+    (ip_str, jp_str, out_dir_str, incremental, old_pairs_frozen, maxlen,
+     save_format, jpg_quality, png_compress) = task
+
+    out_dir = Path(out_dir_str)
+    crops_dir = out_dir / "crops"
+    pairs = []
+    created = 0
+    skipped_existing = 0
+    warn_empty = 0
+    warn_json_bad = 0
+    warn_img_bad = 0
+
+    try:
+        data = load_json(Path(jp_str))
+        if not isinstance(data, dict):
+            warn_json_bad += 1
+            return pairs, created, skipped_existing, warn_empty, warn_json_bad, warn_img_bad
+        cells = data.get("cells")
+        if not isinstance(cells, list) or len(cells) == 0:
+            return pairs, created, skipped_existing, warn_empty, warn_json_bad, warn_img_bad
+
+        try:
+            im = Image.open(ip_str).convert("RGB")
+        except (FileNotFoundError, UnidentifiedImageError, OSError):
+            warn_img_bad += 1
+            return pairs, created, skipped_existing, warn_empty, warn_json_bad, warn_img_bad
+
+        def keyfn(c):
+            b = bbox_to_xyxy(c.get("bbox"))
+            return (b[1], b[0]) if b else (0.0, 0.0)
+
+        old_pairs = old_pairs_frozen  # frozenset for pickling perf
+        for k, c in enumerate(sorted(cells, key=keyfn)):
+            txt = c.get("text")
+            if not isinstance(txt, str) or not txt.strip():
+                warn_empty += 1
+                continue
+            bxyxy = bbox_to_xyxy(c.get("bbox"))
+            if not bxyxy:
+                continue
+
+            stem = Path(ip_str).stem
+            ext = ".png" if save_format == "png" else ".jpg"
+            rel = f"crops/{stem}_{k:04d}{ext}"
+            abs_p = crops_dir / Path(rel).name  # write into crops_dir
+
+            # incremental skip if exact pair exists and file exists
+            if incremental and ((rel, txt.strip()) in old_pairs) and abs_p.exists():
+                skipped_existing += 1
+                pairs.append((rel, txt.strip()))
+                continue
+
+            crop = safe_crop(im, bxyxy)
+            if crop is None:
+                continue
+
+            # save with fast settings
+            abs_p.parent.mkdir(parents=True, exist_ok=True)
+            if save_format == "png":
+                crop.save(abs_p, compress_level=max(0, min(9, int(png_compress))), optimize=False)
+            else:
+                if crop.mode != "RGB":
+                    crop = crop.convert("RGB")
+                crop.save(abs_p, quality=max(1, min(100, int(jpg_quality))), subsampling=0, optimize=False)
+
+            created += 1
+            if maxlen and len(txt) > maxlen:
+                txt = txt[:maxlen]
+            pairs.append((rel, txt.strip()))
+
+    except Exception:
+        # on n'arrête pas le batch sur une image
+        pass
+
+    return pairs, created, skipped_existing, warn_empty, warn_json_bad, warn_img_bad
+
+# ----------------- MAIN -----------------
 def main():
     args = parse_args()
     json_dir = Path(args.json_dir)
@@ -120,7 +210,7 @@ def main():
 
     cache_file = Path(args.cache_file) if args.cache_file else (out_dir / ".cache/json2crops.manifest.json")
 
-    # === CACHE CHECK ===
+    # CACHE
     digest_now, imgs_list, jsons_list = build_inputs_digest(img_dir, json_dir)
     cache = read_cache(cache_file)
     if (not args.force) and cache and cache.get("inputs_digest") == digest_now and \
@@ -132,98 +222,101 @@ def main():
     # Index JSON
     idx_jsonstem, idx_origstem, idx_ph = index_json(json_dir)
 
-    # Images candidates
+    # Liste d'images
     img_exts = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp")
     imgs = [Path(p) for p in imgs_list if Path(p).suffix.lower() in img_exts]
 
-    # Si incrémental, on lit l’ancien manifest pour connaître les crops déjà générés
+    # Incrémental: old_pairs
     old_pairs = set()
     if args.incremental and cache and isinstance(cache.get("pairs"), list):
         for p in cache["pairs"]:
             if isinstance(p, list) and len(p) == 2:
                 old_pairs.add(tuple(p))
+    old_pairs_frozen = frozenset(old_pairs)
 
-    pairs = []  # (rel_path, text)
-    warn_missing = warn_empty = 0
-    created = skipped_existing = 0
-    print(len(imgs))
+    # Mapper chaque image -> json (en amont, sur le processus maître)
+    tasks = []
+    warn_missing = 0
     for ip in imgs:
         jp = find_json_for_image(ip, idx_jsonstem, idx_origstem, idx_ph)
         if jp is None:
-            print(f"[WARN] JSON introuvable pour {ip.name}")
             warn_missing += 1
             continue
+        tasks.append((
+            str(ip),
+            str(jp),
+            str(out_dir),
+            bool(args.incremental),
+            old_pairs_frozen,
+            int(args.maxlen),
+            args.save_format,
+            int(args.jpg_quality),
+            int(args.png_compress)
+        ))
 
-        data = load_json(jp)
-        if not isinstance(data, dict):
-            print(f"[WARN] JSON illisible: {jp.name}")
-            continue
+    if not tasks:
+        print("[FATAL] Aucune image éligible.")
+        return
 
-        cells = data.get("cells")
-        if not isinstance(cells, list) or len(cells) == 0:
-            print(f"[WARN] pas de 'cells' dans {jp.name}")
-            continue
+    # Parallélisation
+    workers = args.workers or os.cpu_count() or 1
+    print(f"[INFO] Images: {len(tasks)} | workers: {workers} | fmt={args.save_format}")
+    all_pairs = []
+    created = 0
+    skipped_existing = 0
+    warn_empty = 0
+    warn_json_bad = 0
+    warn_img_bad = 0
 
-        try:
-            im = Image.open(ip).convert("RGB")
-        except (FileNotFoundError, PIL.UnidentifiedImageError, OSError) as e:
-            print(f"[WARN] image illisible {ip}: {e}")
-            continue
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(process_one_image, t) for t in tasks]
+        for fut in as_completed(futures):
+            pairs, c, s, we, wj, wi = fut.result()
+            all_pairs.extend(pairs)
+            created += c
+            skipped_existing += s
+            warn_empty += we
+            warn_json_bad += wj
+            warn_img_bad += wi
 
-        def keyfn(c):
-            b = bbox_to_xyxy(c.get("bbox"))
-            return (b[1], b[0]) if b else (0.0, 0.0)
-
-        for k, c in enumerate(sorted(cells, key=keyfn)):
-            txt = c.get("text")
-            if not isinstance(txt, str) or not txt.strip():
-                warn_empty += 1
-                continue
-            bxyxy = bbox_to_xyxy(c.get("bbox"))
-            if not bxyxy:
-                continue
-            rel = f"crops/{ip.stem}_{k:04d}.png"
-            # Incrémental: si déjà dans old_pairs ET le fichier existe, on garde
-            if args.incremental and ((rel, txt.strip()) in old_pairs) and (out_dir / rel).exists():
-                skipped_existing += 1
-                pairs.append((rel, txt.strip()))
-                continue
-            crop = safe_crop(im, bxyxy)
-            if crop is None:
-                continue
-            (out_dir / "crops").mkdir(exist_ok=True)
-            crop.save(out_dir / rel)
-            created += 1
-            if args.maxlen and len(txt) > args.maxlen:
-                txt = txt[:args.maxlen]
-            pairs.append((rel, txt.strip()))
-
-    if not pairs:
+    if not all_pairs:
         print("[FATAL] Aucun pair crop/texte généré.")
-        exit(2)
+        return
 
-    random.shuffle(pairs)
-    n = len(pairs)
+    random.shuffle(all_pairs)
+    n = len(all_pairs)
     nv = max(1, int(round(n * args.val_split)))
-    val = pairs[:nv]
-    train = pairs[nv:]
+    val = all_pairs[:nv]
+    train = all_pairs[nv:]
 
+    out_dir.mkdir(parents=True, exist_ok=True)
     with open(out_dir / "train.txt", "w", encoding="utf-8") as f:
-        for p, t in train: f.write(f"{p}\t{t}\n")
+        for p, t in train:
+            f.write(f"{p}\t{t}\n")
     with open(out_dir / "val.txt", "w", encoding="utf-8") as f:
-        for p, t in val:   f.write(f"{p}\t{t}\n")
+        for p, t in val:
+            f.write(f"{p}\t{t}\n")
 
-    # Écrit le cache
     payload = {
         "inputs_digest": digest_now,
         "ts": int(time.time()),
-        "pairs": pairs,  # pour l'incrémental
-        "counts": {"train": len(train), "val": len(val), "created": created, "skipped_existing": skipped_existing},
+        "pairs": all_pairs,
+        "counts": {
+            "train": len(train),
+            "val": len(val),
+            "created": created,
+            "skipped_existing": skipped_existing,
+            "warn_missing_json": warn_missing,
+            "warn_empty_text": warn_empty,
+            "warn_json_bad": warn_json_bad,
+            "warn_img_bad": warn_img_bad
+        },
     }
     write_cache(cache_file, payload)
 
-    print(f"[CROPS] train:{len(train)}  val:{len(val)}  created:{created}  skipped_existing:{skipped_existing} "
-          f"warn_missing_json:{warn_missing} warn_empty_text:{warn_empty}")
+    print(f"[CROPS] total:{n}  train:{len(train)}  val:{len(val)}  created:{created}  "
+          f"skipped_existing:{skipped_existing}  "
+          f"warn_missing_json:{warn_missing}  warn_json_bad:{warn_json_bad}  warn_img_bad:{warn_img_bad}  warn_empty_text:{warn_empty}")
     print(f"      → {out_dir/'train.txt'} ; {out_dir/'val.txt'} ; crops={out_dir/'crops'}")
 
 if __name__ == "__main__":

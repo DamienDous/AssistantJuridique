@@ -143,7 +143,8 @@ def process_split(base, split, max_len, expect_width, hstride, drop_too_long, ch
 
             # Filtre OOV si charset disponible
             if charset is not None:
-                if any((c not in charset) for c in lab):
+                bad_chars = [c for c in lab if c not in charset]
+                if bad_chars:
                     oov += 1
                     continue
 
@@ -197,13 +198,12 @@ def main():
     if os.path.isfile(charset_path):
         try:
             with open(charset_path, 'r', encoding='utf-8') as f:
-                # un caractère par ligne
                 charset = set(ch.rstrip('\r\n') for ch in f if ch.strip() != "")
+            # ✅ Autoriser aussi l'espace si use_space_char est activé
+            charset.add(" ")
         except Exception as e:
             print(f"[WARN] Impossible de lire charset.txt ({e}) -> filtre OOV désactivé.", file=sys.stderr)
             charset = None
-    else:
-        print("[WARN] charset.txt absent -> filtre OOV désactivé.", file=sys.stderr)
 
     # --- Cache check ---
     new_hash = make_fingerprint(base=base, config_path=args.config)
