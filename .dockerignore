@@ -1,0 +1,9 @@
+.git
+*.ipynb
+img
+img_small
+anno
+data
+output_models
+__pycache__/
+*.pyc
