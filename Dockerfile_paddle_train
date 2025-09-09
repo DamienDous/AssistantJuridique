@@ -1,5 +1,5 @@
 # Dockerfile_paddle_train
-FROM paddleocr-model:latest
+FROM paddleocr-model:local
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Europe/Paris \
@@ -10,12 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     imagemagick rsync jq && \
     rm -rf /var/lib/apt/lists/*
 
-# Copie les scripts et les fichiers de configuration
-COPY OCR/PADDLE_TRAINING/   /workspace/
+RUN pip install --no-cache-dir regex
 
-# Normaliser fins de lignes & rendre exécutables pour TOUS les .sh et .py
+# Copie scripts, config, dict (⚠️ sans pretrain_models pour éviter doublon)
+COPY OCR/PADDLE_TRAINING/script   /workspace/script
+COPY OCR/PADDLE_TRAINING/config   /workspace/config
+COPY OCR/PADDLE_TRAINING/dict     /workspace/dict
+
+# Normaliser fins de lignes & rendre exécutables
 RUN find /workspace -type f \( -name "*.sh" -o -name "*.py" \) -exec sed -i 's/\r$//' {} + \
     && find /workspace -type f -name "*.sh" -exec chmod +x {} +
 
-WORKDIR /workspace/
-ENTRYPOINT ["script/launch_ocr_train.sh"]
+WORKDIR /workspace
+# Laisse l’entrypoint souple, docker-compose pilotera le lancement
+CMD ["/bin/bash"]
