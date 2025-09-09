@@ -2,36 +2,46 @@ services:
   sync:
     image: alpine:3.20
     volumes:
-      - ocrdata:/workspace/data          # <—
+      - ocrdata:/workspace/data
       - type: bind
-        source: ${HOST_DATA_DIR}         # dossier source côté hôte
+        source: ${HOST_DATA_DIR}
         target: /host
     command: >
       sh -c "apk add --no-cache rsync &&
-             if [ ! -d /host ] || [ -z \"$(ls -A /host)\" ]; then
-               echo '[sync] /host vide ou introuvable' >&2; exit 2; fi &&
-             rsync -av --delete /host/ /workspace/data/ &&
-             echo '[sync] done' &&
-             ls -l /workspace/data | head -n 20"
-    restart: "no"
+            rsync -av --delete --exclude 'crops/' /host/ /workspace/data/ &&
+            echo '[sync] done' &&
+            ls -l /workspace/data | head -n 20"
+        restart: "no"
 
   train:
-    image: paddleocr-train:stable
-    gpus: all
+    image: paddleocr-train:local
     working_dir: /workspace
-    command: ["bash","-lc","sleep infinity"]   # <-- garde le conteneur en vie
+    depends_on:
+      sync:
+        condition: service_completed_successfully
+    # lance le script CTC dans le conteneur
+    entrypoint: ["bash","-lc","/workspace/script/launch_ocr_train.sh /workspace/data"]
+    environment:
+      - DICT=/workspace/dict/latin_dict.txt
+      - RESUME=0             # mets 1 pour reprendre ./output/latin_ppocrv3/latest
+      - FLAGS_use_shared_memory=0
+    gpus: all
+    shm_size: "1g"
     volumes:
+      - ocrdata:/workspace/data
       - type: bind
-        source: C:\Users\damien_dous\dev\DB\currentFolder   # <-- tes JSON + images (img_FULL, etc.)
-        target: /workspace/data
+        source: ./OCR/PADDLE_TRAINING/script
+        target: /workspace/script
       - type: bind
-        source: C:\Users\damien_dous\dev\dict               # <-- doit contenir latin_dict.txt
+        source: ./OCR/PADDLE_TRAINING/dict
         target: /workspace/dict
-        read_only: true
+        read_only: false
       - type: bind
-        source: C:\Users\damien_dous\dev\en_PP-OCRv3_rec.multihead.yml  # <-- ta config MultiHead
-        target: /workspace/config/en_PP-OCRv3_rec.multihead.yml
-        read_only: true
+        source: ./OCR/PADDLE_TRAINING/config
+        target: /workspace/config
+      - type: bind
+        source: ./OCR/PADDLE_TRAINING/pretrain_models
+        target: /workspace/pretrain_models
 
 volumes:
   ocrdata:
