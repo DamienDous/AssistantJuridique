@@ -1,5 +1,6 @@
 # 🔄 Fichiers de la base de données
 DB/
+OCR/PADDLE_TRAINING/pretrain_models
 
 # 🧪 Environnements Python
 .env/
