@@ -1,7 +1,7 @@
 Global:
   debug: false
   use_gpu: true
-  epoch_num: 50
+  epoch_num: 10
   log_smooth_window: 20
   print_batch_step: 10
   save_model_dir: ./output/rec_ppocr_v3_latin
@@ -46,26 +46,32 @@ Architecture:
     - 2
     last_pool_type: avg
   Head:
-    name: CTCHead
-    Neck:
-      name: svtr
-      dims: 64
-      depth: 2
-      hidden_dims: 120
-      use_guide: true
-    Head:
-      fc_decay: 1.0e-05
+    name: MultiHead
+    head_list:
+      - CTCHead:
+          Head:
+            fc_decay: 1.0e-05
+          Neck:
+            name: svtr
+            dims: 64
+            depth: 2
+            hidden_dims: 120
+            use_guide: True
+      - SARHead:
+          enc_dim: 512
+          max_text_length: 25
 Loss:
   name: MultiLoss
   loss_config_list:
-  - CTCLoss: null
-  - SARLoss: null
+    - CTCLoss: null
+    - SARLoss: null
 PostProcess:
   name: CTCLabelDecode
 Metric:
   name: RecMetric
   main_indicator: acc
   keep_space: false
+
 Train:
   shm_size: "16g"
   deploy:
@@ -79,57 +85,44 @@ Train:
     name: SimpleDataSet
     data_dir: /workspace/data
     label_file_list:
-    - /workspace/data/train.clean.txt
-    ratio_list:
-    - 1.0
+      - /workspace/data/train.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
         channel_first: false
     - RecAug: null
     - MultiLabelEncode: null
-    - SVTRRecResizeImg:
-        image_shape: [3, 48, 320]
+    - SARRecResizeImg:
+        image_shape: [3, 48, 48, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
-        keep_keys:
-        - image
-        - label_ctc
-        - label_sar
-        - length
-        - valid_ratio
+        keep_keys: ["image", "label_ctc", "label_sar", "length", "valid_ratio"]
   loader:
     shuffle: true
     batch_size_per_card: 256
     drop_last: true
     num_workers: 8
-    use_shared_memory: True
+    use_shared_memory: true
 Eval:
   dataset:
     name: SimpleDataSet
     data_dir: /workspace/data
     label_file_list:
-    - /workspace/data/val.clean.txt
+      - /workspace/data/val.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
         channel_first: false
     - MultiLabelEncode: null
-    - SVTRRecResizeImg:
-        image_shape: [3, 48, 320]
+    - SARRecResizeImg:
+        image_shape: [3, 48, 48, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
-        keep_keys:
-        - image
-        - label_ctc
-        - label_sar
-        - length
-        - valid_ratio
+        keep_keys: ["image", "label_ctc", "label_sar", "length", "valid_ratio"]
   loader:
     shuffle: false
     drop_last: false
     batch_size_per_card: 128
     num_workers: 4
-profiler_options: null
