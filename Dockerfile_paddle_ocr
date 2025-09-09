@@ -1,5 +1,5 @@
 # Dockerfile_paddle_ocr
-FROM paddlepaddle/paddle:2.5.2-gpu-cuda12.0-cudnn8.9-trt8.6 AS paddle_ocr
+FROM paddlepaddle/paddle:2.5.2-gpu-cuda12.0-cudnn8.9-trt8.6
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
@@ -14,40 +14,8 @@ WORKDIR /opt
 ARG PADDLEOCR_REF=release/2.7
 RUN git clone --depth 1 --branch ${PADDLEOCR_REF} https://github.com/PaddlePaddle/PaddleOCR.git
 WORKDIR /opt/PaddleOCR
-RUN pip3 install -U pip "numpy<2" && pip3 install -r requirements.txt
-
-# Modèles LATIN PP-OCRv3 (train + infer) avec fallback robuste
-RUN set -eux; \
-  mkdir -p /models/ppocrv3/latin && cd /models/ppocrv3/latin; \
-  fetch() { curl -fsSL "$1" -o "/tmp/$2.tar" && tar -xf "/tmp/$2.tar" -C . && rm "/tmp/$2.tar"; }; \
-  ok_t=0; for u in \
-    https://paddleocr.bj.bcebos.com/PP-OCRv3/multilingual/latin_PP-OCRv3_rec_train.tar \
-    https://paddleocr.bj.bcebos.com/PP-OCRv3/latin/latin_PP-OCRv3_rec_train.tar \
-  ; do echo ">> $u"; fetch "$u" train && ok_t=1 && break || true; done; \
-  ok_i=0; for u in \
-    https://paddleocr.bj.bcebos.com/PP-OCRv3/multilingual/latin_PP-OCRv3_rec_infer.tar \
-    https://paddleocr.bj.bcebos.com/PP-OCRv3/latin/latin_PP-OCRv3_rec_infer.tar \
-  ; do echo ">> $u"; fetch "$u" infer && ok_i=1 && break || true; done; \
-  [ "$ok_t" -eq 1 ] && [ "$ok_i" -eq 1 ] || { echo 'ERROR: poids latin introuvables'; ls -al; exit 1; }; \
-  train_src="$(ls -d latin_PP-OCRv3_rec_train 2>/dev/null | head -n1)"; \
-  infer_src="$(ls -d latin_PP-OCRv3_rec_infer 2>/dev/null | head -n1)"; \
-  ln -snf "$train_src" train && ln -snf "$infer_src" infer; \
-  train_pd="$(ls -1 train/*.pdparams | head -n1)"; \
-  [ -n "$train_pd" ] || { echo 'ERROR: pas de .pdparams dans train'; exit 1; }; \
-  ln -snf "$train_pd" /models/ppocrv3/latin/train/latest.pdparams; \
-  echo ">> Symlink latin: /models/ppocrv3/latin/train/latest.pdparams -> $train_pd"
-
-# Symlink robuste vers le meilleur checkpoint latin (.pdparams)
-RUN set -eux; \
-  cd /models/ppocrv3/latin; \
-  # Garantir "train" -> dossier train extrait
-  [ -L train ] || ln -snf latin_PP-OCRv3_rec_train train; \
-  # Trouver un .pdparams plausible (best_accuracy*.pdparams en priorité)
-  f="$(ls -1 train/*best*.pdparams 2>/dev/null | head -n1 || true)"; \
-  [ -z "$f" ] && f="$(ls -1 train/*.pdparams 2>/dev/null | head -n1 || true)"; \
-  [ -n "$f" ] || { echo 'Aucun .pdparams trouvé dans /models/ppocrv3/latin/train'; ls -al train; exit 1; }; \
-  ln -snf "$(basename "$f")" /models/ppocrv3/latin/train/latest.pdparams; \
-  echo ">> Symlink OK: /models/ppocrv3/latin/train/latest.pdparams -> $(readlink -f /models/ppocrv3/latin/train/latest.pdparams)"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install -U pip "numpy<2" && pip3 install -r requirements.txt
 
 # Point par défaut
 WORKDIR /opt/PaddleOCR
