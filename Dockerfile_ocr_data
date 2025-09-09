@@ -1,0 +1,16 @@
+# Image ultra-légère avec cp/ls
+FROM busybox:latest
+
+# Mets ton dataset dans l'image (adapter le chemin à ton repo)
+COPY DB/currentFolder/ /seeddata/
+
+# Volume partagé avec le conteneur d'entraînement
+VOLUME ["/workspace/data"]
+
+# Sync "merge" à chaque démarrage :
+# - copie les nouveaux/plus récents,
+# - ne supprime rien,
+# - marche aussi si /workspace/data est vide (seed initial)
+CMD sh -c 'echo "[data] Sync /seeddata -> /workspace/data (merge)"; \
+           cp -a -u /seeddata/. /workspace/data/; \
+           echo "[data] done"'
