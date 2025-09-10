@@ -1,6 +1,10 @@
 # 🔄 Fichiers de la base de données
 DB/
 OCR/PADDLE_TRAINING/pretrain_models
+ocrocheckpoints/
+ocroput/
+output/
+paddle_cache/
 
 # 🧪 Environnements Python
 .env/
