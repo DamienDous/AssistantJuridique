@@ -51,36 +51,94 @@ python3 script/normalize_and_validate_dataset.py \
 # 3) Entraînement OCR
 cd /opt/PaddleOCR
 
-echo "▶ Train OCR..."
-python3 tools/train.py -c "$CONFIG_MULTI" \
-  -o Train.dataset.label_file_list="[\"/workspace/data/train.txt\"]" \
-  -o Eval.dataset.label_file_list="[\"/workspace/data/val.txt\"]" \
-  -o Global.character_dict_path="$DICT" \
-  -o Global.use_space_char=True
+echo "▶ Vérification cache d'entraînement..."
+set +e
+python3 - <<'PY'
+import os, hashlib
+
+def make_fingerprint():
+    base = os.environ.get("BASE_DIR", "/workspace/data")
+    cfg  = "/workspace/config/latin_PP-OCRv3_rec.multihead.yml"
+    h = hashlib.sha256()
+    anno = os.path.join(base, "anno")
+    if os.path.isdir(anno):
+        for root,_,fs in os.walk(anno):
+            for fn in sorted(fs):
+                if fn.lower().endswith(".json"):
+                    with open(os.path.join(root,fn),"rb") as f:
+                        h.update(f.read())
+    if os.path.isfile(cfg):
+        with open(cfg,"rb") as f:
+            h.update(f.read())
+    return h.hexdigest()
+
+outdir="/opt/PaddleOCR/output/rec_ppocr_v3_latin"
+os.makedirs(outdir, exist_ok=True)
+hashfile = os.path.join(outdir,".train.sha256")
+
+new = make_fingerprint()
+old = open(hashfile).read().strip() if os.path.isfile(hashfile) else None
+
+if old == new:
+    print("[CACHE] Entraînement inchangé, on skippe.")
+    raise SystemExit(100)   # code spécial pour Bash
+else:
+    with open(hashfile,"w") as f: f.write(new+"\n")
+    print("[CACHE] Changements détectés → nouvel entraînement requis.")
+PY
+
+ret=$?   # capture le code de sortie Python
+set -e
+if [ $ret -eq 100 ]; then
+    echo "=== Skip entraînement (pas de changement détecté) ==="
+    SKIP=1
+else
+    echo "=== Lancement de l’entraînement ==="
+    SKIP=0
+    cd /opt/PaddleOCR
+    python3 tools/train.py -c "$CONFIG_MULTI" \
+      -o Train.dataset.label_file_list="[\"$BASE_DIR/train.txt\"]" \
+      -o Eval.dataset.label_file_list="[\"$BASE_DIR/val.txt\"]" \
+      -o Global.character_dict_path="$DICT" \
+      -o Global.use_space_char=True \
+      -o Global.save_model_dir="./output/rec_ppocr_v3_latin"
+    cd -
+fi
+
 
 # 4) Export du modèle (avec timestamp unique)
 ts=$(date +%Y%m%d_%H%M%S)
-export_dir="./inference/rec_ppocr_v3_latin_$ts"
+export_dir="/workspace/output/inference/rec_ppocr_v3_latin_$ts"
 
-echo "▶ Export du modèle vers $export_dir ..."
-python3 tools/export_model.py \
-  -c "$CONFIG" \
-  -o Global.pretrained_model=./output/rec_ppocr_v3_latin/latest \
-     Global.save_inference_dir="$export_dir"
-
-# Vérification succès export
-if [ -d "$export_dir" ]; then
-    echo "[OK] Modèle exporté dans $export_dir"
+# Vérifie que le dossier des checkpoints existe
+if [ -d "./output/rec_ppocr_v3_latin" ]; then
+    latest_ckpt=$(find ./output/rec_ppocr_v3_latin -type f -name "*.pdparams" 2>/dev/null | sort -r | head -n1)
+    # fallback
+    if [ -z "$latest_ckpt" ] && [ -f "./output/rec_ppocr_v3_latin/latest.pdparams" ]; then
+        latest_ckpt="./output/rec_ppocr_v3_latin/latest.pdparams"
+    fi
 else
-    echo "[ERREUR] L'export a échoué."
-    exit 1
+    latest_ckpt=""
 fi
 
-# --- Copie du modèle exporté dans /workspace/output_models ---
-mkdir -p /workspace/output_models/$(basename "$export_dir")
-cp -r "$export_dir"/* /workspace/output_models/$(basename "$export_dir")/
-echo "[OK] Modèle copié dans /workspace/output_models/$(basename "$export_dir")"
+if [ "$SKIP" -eq 1 ]; then
+    # Rien de nouveau, on exporte sans recharger latest
+    python3 tools/export_model.py \
+      -c "$CONFIG" \
+      -o Global.save_inference_dir="$export_dir"
+else
+    # Nouvel entraînement → export avec le dernier checkpoint
+    python3 tools/export_model.py \
+      -c "$CONFIG" \
+      -o Global.pretrained_model="$latest_ckpt" \
+         Global.save_inference_dir="$export_dir"
+fi
+
 
 # 5) Évaluation automatique
-echo "▶ Évaluation automatique sur le set test..."
-EXPORT_DIR="$export_dir" python3 script/eval_after_export.py
+if [ -n "$export_dir" ] && [ -d "$export_dir" ]; then
+    echo "▶ Évaluation automatique sur le set test..."
+    EXPORT_DIR="$export_dir" python3 /workspace/script/eval_after_export.py
+else
+    echo "⚠️ Évaluation ignorée (pas de modèle exporté)."
+fi

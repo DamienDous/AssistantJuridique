@@ -23,6 +23,7 @@ Global:
   save_res_path: ./output/rec/predicts_ppocrv3.txt
   global_batch_size: 512
   use_visualdl: true
+
 Optimizer:
   name: Adam
   beta1: 0.9
@@ -34,6 +35,7 @@ Optimizer:
   regularizer:
     name: L2
     factor: 3.0e-05
+
 Architecture:
   model_type: rec
   algorithm: SVTR
@@ -55,26 +57,19 @@ Architecture:
       use_guide: true
     Head:
       fc_decay: 1.0e-05
+
 Loss:
-  name: MultiLoss
-  loss_config_list:
-  - CTCLoss: null
-  - SARLoss: null
+  name: CTCLoss
+
 PostProcess:
   name: CTCLabelDecode
+
 Metric:
   name: RecMetric
   main_indicator: acc
   keep_space: false
+
 Train:
-  shm_size: "16g"
-  deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          count: all
-          capabilities: [gpu]
   dataset:
     name: SimpleDataSet
     data_dir: /workspace/data
@@ -87,7 +82,7 @@ Train:
         img_mode: BGR
         channel_first: false
     - RecAug: null
-    - MultiLabelEncode: null
+    - CTCLabelEncode: null
     - SVTRRecResizeImg:
         image_shape: [3, 48, 320]
         width_downsample_ratio: 0.25
@@ -95,8 +90,7 @@ Train:
     - KeepKeys:
         keep_keys:
         - image
-        - label_ctc
-        - label_sar
+        - label
         - length
         - valid_ratio
   loader:
@@ -105,6 +99,7 @@ Train:
     drop_last: true
     num_workers: 8
     use_shared_memory: True
+
 Eval:
   dataset:
     name: SimpleDataSet
@@ -115,7 +110,7 @@ Eval:
     - DecodeImage:
         img_mode: BGR
         channel_first: false
-    - MultiLabelEncode: null
+    - CTCLabelEncode: null
     - SVTRRecResizeImg:
         image_shape: [3, 48, 320]
         width_downsample_ratio: 0.25
@@ -123,8 +118,7 @@ Eval:
     - KeepKeys:
         keep_keys:
         - image
-        - label_ctc
-        - label_sar
+        - label
         - length
         - valid_ratio
   loader:
@@ -132,4 +126,5 @@ Eval:
     drop_last: false
     batch_size_per_card: 128
     num_workers: 4
+
 profiler_options: null

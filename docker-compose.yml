@@ -11,7 +11,7 @@ services:
             rsync -av --delete --exclude 'crops/' /host/ /workspace/data/ &&
             echo '[sync] done' &&
             ls -l /workspace/data | head -n 20"
-        restart: "no"
+    restart: "no"
 
   train:
     image: paddleocr-train:local
@@ -19,16 +19,18 @@ services:
     depends_on:
       sync:
         condition: service_completed_successfully
-    # lance le script CTC dans le conteneur
     entrypoint: ["bash","-lc","/workspace/script/launch_ocr_train.sh /workspace/data"]
     environment:
       - DICT=/workspace/dict/latin_dict.txt
-      - RESUME=0             # mets 1 pour reprendre ./output/latin_ppocrv3/latest
+      - RESUME=0
       - FLAGS_use_shared_memory=0
     gpus: all
     shm_size: "1g"
     volumes:
       - ocrdata:/workspace/data
+      - ocroutput:/workspace/output            # ← checkpoints & cache
+      - ocrmodels:/workspace/output_models     # ← modèles exportés
+      - ./ocrocheckpoints:/opt/PaddleOCR/output
       - type: bind
         source: ./OCR/PADDLE_TRAINING/script
         target: /workspace/script
@@ -45,3 +47,5 @@ services:
 
 volumes:
   ocrdata:
+  ocroutput:
+  ocrmodels:

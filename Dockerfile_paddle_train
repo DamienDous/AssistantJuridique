@@ -7,10 +7,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Outils utiles
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    imagemagick rsync jq && \
+    tesseract-ocr imagemagick rsync jq && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir regex
+RUN pip install --no-cache-dir regex pytesseract Levenshtein
+RUN pip install --no-cache-dir "numpy<2.0" "imgaug<0.4.0"
+RUN pip install "paddleocr<2.7"
 
 # Copie scripts, config, dict (⚠️ sans pretrain_models pour éviter doublon)
 COPY OCR/PADDLE_TRAINING/script   /workspace/script
