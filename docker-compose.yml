@@ -1,51 +1,99 @@
 services:
-  sync:
+  paddleocr-model:
+    build:
+      context: .
+      dockerfile: Dockerfile_paddle_ocr
+    image: paddleocr-model:local
+
+  sync_long:
     image: alpine:3.20
     volumes:
-      - ocrdata:/workspace/data
+      - ./train_long:/workspace
       - type: bind
-        source: ${HOST_DATA_DIR}
+        source: ${HOST_DATA_DIR_LONG}
         target: /host
     command: >
       sh -c "apk add --no-cache rsync &&
-            rsync -av --delete --exclude 'crops/' /host/ /workspace/data/ &&
-            echo '[sync] done' &&
-            ls -l /workspace/data | head -n 20"
+             rsync -av --delete /host/ /workspace/ &&
+             echo '[sync_long] done' &&
+             ls -l /workspace | head -n 20"
     restart: "no"
 
-  train:
+  sync_short:
+    image: alpine:3.20
+    volumes:
+      - ./train_short:/workspace
+      - type: bind
+        source: ${HOST_DATA_DIR_SHORT}
+        target: /host
+    command: >
+      sh -c "apk add --no-cache rsync &&
+             rsync -av --delete /host/ /workspace/ &&
+             echo '[sync_short] done' &&
+             ls -l /workspace | head -n 20"
+    restart: "no"
+
+  train_long:
+    build:
+      context: .
+      dockerfile: Dockerfile_paddle_train
     image: paddleocr-train:local
+    container_name: paddleocr-long
     working_dir: /workspace
     depends_on:
-      sync:
+      sync_long:
         condition: service_completed_successfully
-    entrypoint: ["bash","-lc","/workspace/script/launch_ocr_train.sh /workspace/data"]
+    entrypoint: ["bash","-lc","/workspace/script/launch_ocr_train.sh /workspace"]
+    shm_size: "16g"
     environment:
       - DICT=/workspace/dict/latin_dict.txt
       - RESUME=0
       - FLAGS_use_shared_memory=0
+      - CUDA_VISIBLE_DEVICES=0
+      - FLAGS_fraction_of_gpu_memory_to_use=0.6
     gpus: all
-    shm_size: "1g"
     volumes:
-      - ocrdata:/workspace/data
-      - ocroutput:/workspace/output            # ← checkpoints & cache
-      - ocrmodels:/workspace/output_models     # ← modèles exportés
-      - ./ocrocheckpoints:/opt/PaddleOCR/output
-      - type: bind
-        source: ./OCR/PADDLE_TRAINING/script
-        target: /workspace/script
-      - type: bind
-        source: ./OCR/PADDLE_TRAINING/dict
-        target: /workspace/dict
-        read_only: false
-      - type: bind
-        source: ./OCR/PADDLE_TRAINING/config
-        target: /workspace/config
-      - type: bind
-        source: ./OCR/PADDLE_TRAINING/pretrain_models
-        target: /workspace/pretrain_models
+      - ${HOST_DATA_DIR_LONG}/img:/workspace/img
+      - ${HOST_DATA_DIR_LONG}/anno:/workspace/anno
+      - ./train_long/output:/workspace/output
+      - ./train_long/checkpoints:/opt/PaddleOCR/output
+      - ./train_long/crops:/workspace/crops
+      - ./eval:/workspace/eval
+      - ./OCR/PADDLE_TRAINING/script:/workspace/script
+      - ./OCR/PADDLE_TRAINING/dict:/workspace/dict
+      - ./OCR/PADDLE_TRAINING/config_long:/workspace/config
+      - ./OCR/PADDLE_TRAINING/pretrain_models:/workspace/pretrain_models
+
+  train_short:
+    build:
+      context: .
+      dockerfile: Dockerfile_paddle_train
+    image: paddleocr-train:local
+    container_name: paddleocr-short
+    working_dir: /workspace
+    depends_on:
+      sync_short:
+        condition: service_completed_successfully
+    entrypoint: ["bash","-lc","/workspace/script/launch_ocr_train.sh /workspace"]
+    shm_size: "8g"
+    environment:
+      - DICT=/workspace/dict/latin_dict.txt
+      - RESUME=0
+      - FLAGS_use_shared_memory=0
+      - CUDA_VISIBLE_DEVICES=0
+      - FLAGS_fraction_of_gpu_memory_to_use=1.0
+    gpus: all
+    volumes:
+      - ${HOST_DATA_DIR_SHORT}/img:/workspace/img
+      - ${HOST_DATA_DIR_SHORT}/anno:/workspace/anno
+      - ./train_short/output:/workspace/output
+      - ./train_short/checkpoints:/opt/PaddleOCR/output
+      - ./train_short/crops:/workspace/crops
+      - ./eval:/workspace/eval
+      - ./OCR/PADDLE_TRAINING/script:/workspace/script
+      - ./OCR/PADDLE_TRAINING/dict:/workspace/dict
+      - ./OCR/PADDLE_TRAINING/config_short:/workspace/config
+      - ./OCR/PADDLE_TRAINING/pretrain_models:/workspace/pretrain_models
 
 volumes:
   ocrdata:
-  ocroutput:
-  ocrmodels:

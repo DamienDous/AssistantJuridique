@@ -9,8 +9,9 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json_dir", required=True)
     ap.add_argument("--img_dir", required=True)
-    ap.add_argument("--out_dir", required=True)
-    ap.add_argument("--val_split", type=float, default=0.1)
+    ap.add_argument("--glob_dir", required=True)
+    ap.add_argument("--val_split", type=float, default=0.1, help="part de validation (par rapport au total)")
+    ap.add_argument("--test_split", type=float, default=0.1, help="part de test (par rapport au total)")
     ap.add_argument("--maxlen", type=int, default=0, help="0=illimité")
     ap.add_argument("--incremental", action="store_true", help="Ne recroppe que les nouveaux/maj.")
     ap.add_argument("--force", action="store_true", help="Ignore le cache et régénère.")
@@ -119,15 +120,10 @@ def write_cache(cache_file: Path, payload: dict):
 
 # ----------------- WORKER -----------------
 def process_one_image(task):
-    """
-    task = (ip_str, jp_str, out_dir_str, incremental, old_pairs_frozen, maxlen,
-            save_format, jpg_quality, png_compress)
-    """
-    (ip_str, jp_str, out_dir_str, incremental, old_pairs_frozen, maxlen,
+    (ip_str, jp_str, crops_dir_str, incremental, old_pairs_frozen, maxlen,
      save_format, jpg_quality, png_compress) = task
 
-    out_dir = Path(out_dir_str)
-    crops_dir = out_dir / "crops"
+    crops_dir = Path(crops_dir_str)
     pairs = []
     created = 0
     skipped_existing = 0
@@ -154,7 +150,7 @@ def process_one_image(task):
             b = bbox_to_xyxy(c.get("bbox"))
             return (b[1], b[0]) if b else (0.0, 0.0)
 
-        old_pairs = old_pairs_frozen  # frozenset for pickling perf
+        old_pairs = old_pairs_frozen
         for k, c in enumerate(sorted(cells, key=keyfn)):
             txt = c.get("text")
             if not isinstance(txt, str) or not txt.strip():
@@ -167,9 +163,8 @@ def process_one_image(task):
             stem = Path(ip_str).stem
             ext = ".png" if save_format == "png" else ".jpg"
             rel = f"crops/{stem}_{k:04d}{ext}"
-            abs_p = crops_dir / Path(rel).name  # write into crops_dir
+            abs_p = crops_dir / Path(rel).name
 
-            # incremental skip if exact pair exists and file exists
             if incremental and ((rel, txt.strip()) in old_pairs) and abs_p.exists():
                 skipped_existing += 1
                 pairs.append((rel, txt.strip()))
@@ -179,7 +174,6 @@ def process_one_image(task):
             if crop is None:
                 continue
 
-            # save with fast settings
             abs_p.parent.mkdir(parents=True, exist_ok=True)
             if save_format == "png":
                 crop.save(abs_p, compress_level=max(0, min(9, int(png_compress))), optimize=False)
@@ -194,7 +188,6 @@ def process_one_image(task):
             pairs.append((rel, txt.strip()))
 
     except Exception:
-        # on n'arrête pas le batch sur une image
         pass
 
     return pairs, created, skipped_existing, warn_empty, warn_json_bad, warn_img_bad
@@ -204,19 +197,20 @@ def main():
     args = parse_args()
     json_dir = Path(args.json_dir)
     img_dir  = Path(args.img_dir)
-    out_dir  = Path(args.out_dir)
-    crops_dir = out_dir / "crops"
+    glob_dir  = Path(args.glob_dir)
+    out_dir = glob_dir / "output"
+    crops_dir = glob_dir / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
-    cache_file = Path(args.cache_file) if args.cache_file else (out_dir / ".cache/json2crops.manifest.json")
+    cache_file = Path(args.cache_file) if args.cache_file else (crops_dir / ".cache/json2crops.manifest.json")
 
     # CACHE
     digest_now, imgs_list, jsons_list = build_inputs_digest(img_dir, json_dir)
     cache = read_cache(cache_file)
     if (not args.force) and cache and cache.get("inputs_digest") == digest_now and \
-       (out_dir/"train.txt").exists() and (out_dir/"val.txt").exists():
+       (out_dir/'train.txt').exists() and (out_dir/'val.txt').exists() and (out_dir/'test.txt').exists():
         print(f"[CACHE] Unchanged inputs, skip json2crops. (digest={digest_now[:12]})")
-        print(f"        train/val existants : {out_dir/'train.txt'} ; {out_dir/'val.txt'}")
+        print(f"        train/val/test existants dans {out_dir}")
         return
 
     # Index JSON
@@ -234,7 +228,7 @@ def main():
                 old_pairs.add(tuple(p))
     old_pairs_frozen = frozenset(old_pairs)
 
-    # Mapper chaque image -> json (en amont, sur le processus maître)
+    # Mapper image -> json
     tasks = []
     warn_missing = 0
     for ip in imgs:
@@ -242,31 +236,19 @@ def main():
         if jp is None:
             warn_missing += 1
             continue
-        tasks.append((
-            str(ip),
-            str(jp),
-            str(out_dir),
-            bool(args.incremental),
-            old_pairs_frozen,
-            int(args.maxlen),
-            args.save_format,
-            int(args.jpg_quality),
-            int(args.png_compress)
-        ))
+        tasks.append((str(ip), str(jp), str(crops_dir),
+                      bool(args.incremental), old_pairs_frozen,
+                      int(args.maxlen), args.save_format,
+                      int(args.jpg_quality), int(args.png_compress)))
 
     if not tasks:
         print("[FATAL] Aucune image éligible.")
         return
 
-    # Parallélisation
     workers = args.workers or os.cpu_count() or 1
     print(f"[INFO] Images: {len(tasks)} | workers: {workers} | fmt={args.save_format}")
     all_pairs = []
-    created = 0
-    skipped_existing = 0
-    warn_empty = 0
-    warn_json_bad = 0
-    warn_img_bad = 0
+    created = skipped_existing = warn_empty = warn_json_bad = warn_img_bad = 0
 
     with ProcessPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(process_one_image, t) for t in tasks]
@@ -283,19 +265,26 @@ def main():
         print("[FATAL] Aucun pair crop/texte généré.")
         return
 
+    # Shuffle & Split  train / val / test
     random.shuffle(all_pairs)
     n = len(all_pairs)
-    nv = max(1, int(round(n * args.val_split)))
-    val = all_pairs[:nv]
-    train = all_pairs[nv:]
+    n_val = max(1, int(round(n * args.val_split)))
+    n_test = max(1, int(round(n * args.test_split)))
+    n_train = n - n_val - n_test
+
+    train = all_pairs[:n_train]
+    val   = all_pairs[n_train:n_train+n_val]
+    test  = all_pairs[n_train+n_val:]
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    with open(out_dir / "train.txt", "w", encoding="utf-8") as f:
-        for p, t in train:
-            f.write(f"{p}\t{t}\n")
-    with open(out_dir / "val.txt", "w", encoding="utf-8") as f:
-        for p, t in val:
-            f.write(f"{p}\t{t}\n")
+    def save_pairs(pairs, path):
+        with open(path, "w", encoding="utf-8") as f:
+            for p, t in pairs:
+                f.write(f"{p}\t{t}\n")
+
+    save_pairs(train, out_dir/'train.txt')
+    save_pairs(val, out_dir/'val.txt')
+    save_pairs(test, out_dir/'test.txt')
 
     payload = {
         "inputs_digest": digest_now,
@@ -304,6 +293,7 @@ def main():
         "counts": {
             "train": len(train),
             "val": len(val),
+            "test": len(test),
             "created": created,
             "skipped_existing": skipped_existing,
             "warn_missing_json": warn_missing,
@@ -314,10 +304,11 @@ def main():
     }
     write_cache(cache_file, payload)
 
-    print(f"[CROPS] total:{n}  train:{len(train)}  val:{len(val)}  created:{created}  "
-          f"skipped_existing:{skipped_existing}  "
-          f"warn_missing_json:{warn_missing}  warn_json_bad:{warn_json_bad}  warn_img_bad:{warn_img_bad}  warn_empty_text:{warn_empty}")
-    print(f"      → {out_dir/'train.txt'} ; {out_dir/'val.txt'} ; crops={out_dir/'crops'}")
+    print(f"[CROPS] total:{n} train:{len(train)} val:{len(val)} test:{len(test)} "
+          f"created:{created} skipped_existing:{skipped_existing} "
+          f"warn_missing_json:{warn_missing} warn_json_bad:{warn_json_bad} "
+          f"warn_img_bad:{warn_img_bad} warn_empty_text:{warn_empty}")
+    print(f"      → {out_dir/'train.txt'} ; {out_dir/'val.txt'} ; {out_dir/'test.txt'} ; crops={crops_dir}")
 
 if __name__ == "__main__":
     main()

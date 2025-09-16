@@ -5,6 +5,8 @@ ocrocheckpoints/
 ocroput/
 output/
 paddle_cache/
+train_long/
+train_short/
 
 # 🧪 Environnements Python
 .env/

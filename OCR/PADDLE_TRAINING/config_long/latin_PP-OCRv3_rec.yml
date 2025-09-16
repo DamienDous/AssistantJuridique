@@ -1,10 +1,10 @@
 Global:
   debug: false
   use_gpu: true
-  epoch_num: 20
+  epoch_num: 50
   log_smooth_window: 20
-  print_batch_step: 10
-  save_model_dir: /opt/PaddleOCR/output/rec_ppocr_v3_latin
+  print_batch_step: 100
+  save_model_dir: ./output/rec_ppocr_v3_latin
   save_epoch_step: 3
   eval_batch_step:
   - 0
@@ -23,6 +23,8 @@ Global:
   save_res_path: ./output/rec/predicts_ppocrv3.txt
   global_batch_size: 512
   use_visualdl: true
+  load_static_weights: true
+  
 Optimizer:
   name: Adam
   beta1: 0.9
@@ -34,6 +36,7 @@ Optimizer:
   regularizer:
     name: L2
     factor: 3.0e-05
+
 Architecture:
   model_type: rec
   algorithm: SVTR
@@ -46,27 +49,22 @@ Architecture:
     - 2
     last_pool_type: avg
   Head:
-    name: MultiHead
-    head_list:
-      - CTCHead:
-          Head:
-            fc_decay: 1.0e-05
-          Neck:
-            name: svtr
-            dims: 64
-            depth: 2
-            hidden_dims: 120
-            use_guide: True
-      - SARHead:
-          enc_dim: 512
-          max_text_length: 25
+    name: CTCHead
+    Neck:
+      name: svtr
+      dims: 64
+      depth: 2
+      hidden_dims: 120
+      use_guide: true
+    Head:
+      fc_decay: 1.0e-05
+
 Loss:
-  name: MultiLoss
-  loss_config_list:
-    - CTCLoss: null
-    - SARLoss: null
+  name: CTCLoss
+
 PostProcess:
   name: CTCLabelDecode
+
 Metric:
   name: RecMetric
   main_indicator: acc
@@ -75,46 +73,59 @@ Metric:
 Train:
   dataset:
     name: SimpleDataSet
-    data_dir: /workspace/data
+    data_dir: /workspace
     label_file_list:
-      - /workspace/data/train.txt
+    - /workspace/output/train.txt
+    ratio_list:
+    - 1.0
     transforms:
     - DecodeImage:
         img_mode: BGR
         channel_first: false
     - RecAug: null
-    - MultiLabelEncode: null
-    - SARRecResizeImg:
-        image_shape: [3, 48, 48, 320]
+    - CTCLabelEncode: null
+    - SVTRRecResizeImg:
+        image_shape: [3, 32, 640]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
-        keep_keys: ["image", "label_ctc", "label_sar", "length", "valid_ratio"]
+        keep_keys:
+        - image
+        - label
+        - length
+        - valid_ratio
   loader:
     shuffle: true
     batch_size_per_card: 256
     drop_last: true
     num_workers: 8
-    use_shared_memory: true
+    use_shared_memory: True
+
 Eval:
   dataset:
     name: SimpleDataSet
-    data_dir: /workspace/data
+    data_dir: /workspace
     label_file_list:
-      - /workspace/data/val.txt
+    - /workspace/output/val.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
         channel_first: false
-    - MultiLabelEncode: null
-    - SARRecResizeImg:
-        image_shape: [3, 48, 48, 320]
+    - CTCLabelEncode: null
+    - SVTRRecResizeImg:
+        image_shape: [3, 32, 640]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
-        keep_keys: ["image", "label_ctc", "label_sar", "length", "valid_ratio"]
+        keep_keys:
+        - image
+        - label
+        - length
+        - valid_ratio
   loader:
     shuffle: false
     drop_last: false
     batch_size_per_card: 128
     num_workers: 4
+
+profiler_options: null
