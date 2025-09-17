@@ -16,7 +16,6 @@ RUN pip install "paddleocr<2.7"
 
 # Copie scripts, config, dict (⚠️ sans pretrain_models pour éviter doublon)
 COPY OCR/PADDLE_TRAINING/script   /workspace/script
-COPY OCR/PADDLE_TRAINING/config   /workspace/config
 COPY OCR/PADDLE_TRAINING/dict     /workspace/dict
 
 # Normaliser fins de lignes & rendre exécutables
