@@ -81,7 +81,7 @@ services:
       - RESUME=0
       - FLAGS_use_shared_memory=0
       - CUDA_VISIBLE_DEVICES=0
-      - FLAGS_fraction_of_gpu_memory_to_use=1.0
+      - FLAGS_fraction_of_gpu_memory_to_use=0.3
     gpus: all
     volumes:
       - ${HOST_DATA_DIR_SHORT}/img:/workspace/img
@@ -94,6 +94,32 @@ services:
       - ./OCR/PADDLE_TRAINING/dict:/workspace/dict
       - ./OCR/PADDLE_TRAINING/config_short:/workspace/config
       - ./OCR/PADDLE_TRAINING/pretrain_models:/workspace/pretrain_models
+
+  eval_model:
+    build:
+      context: .
+      dockerfile: Dockerfile_paddle_eval
+    image: paddleocr-eval:local
+    container_name: paddleocr-eval
+    working_dir: /workspace
+    shm_size: "8g"
+    environment:
+      - FLAGS_use_shared_memory=0
+      - CUDA_VISIBLE_DEVICES=0
+      - FLAGS_fraction_of_gpu_memory_to_use=1
+    gpus: all
+    volumes:
+      - ./train_short/output:/workspace/output         # val.txt
+      - ./train_short/checkpoints:/workspace/checkpoints
+      - ./train_short/anno:/workspace/anno
+      - ./train_short/img:/workspace/img
+      - ./OCR/PADDLE_TRAINING/script:/workspace/script
+      - ./OCR/PADDLE_TRAINING/dict:/workspace/dict
+      - ./OCR/PADDLE_TRAINING/config_short:/workspace/config
+      - ./OCR/PADDLE_TRAINING/pretrain_models:/workspace/pretrain_models
+      - ./eval:/workspace/eval
+      - ./debug_crops:/workspace/debug_crops
+      - ./debug_boxes:/workspace/debug_boxes
 
 volumes:
   ocrdata:

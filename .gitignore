@@ -7,6 +7,9 @@ output/
 paddle_cache/
 train_long/
 train_short/
+eval/
+debug_boxes/
+debug_crops/
 
 # 🧪 Environnements Python
 .env/
