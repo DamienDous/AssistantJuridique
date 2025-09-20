@@ -1,7 +1,7 @@
 Global:
   debug: false
   use_gpu: true
-  epoch_num: 20
+  epoch_num: 30
   log_smooth_window: 20
   print_batch_step: 100
   save_model_dir: /opt/PaddleOCR/output/rec_ppocr_v3_latin
@@ -24,6 +24,8 @@ Global:
   global_batch_size: 512
   use_visualdl: true
   load_static_weights: true
+  use_fp16: True
+  
 Optimizer:
   name: Adam
   beta1: 0.9
@@ -68,11 +70,13 @@ Loss:
     - SARLoss: null
 PostProcess:
   name: CTCLabelDecode
+  character_dict_path: /workspace/dict/latin_dict.txt
+  use_space_char: True
 Metric:
   name: RecMetric
   main_indicator: acc
   keep_space: false
-
+  
 Train:
   dataset:
     name: SimpleDataSet
@@ -86,16 +90,16 @@ Train:
     - RecAug: null
     - MultiLabelEncode: null
     - SARRecResizeImg:
-        image_shape: [3, 32, 48, 640]
+        image_shape: [3, 32, 48, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
         keep_keys: ["image", "label_ctc", "label_sar", "length", "valid_ratio"]
   loader:
     shuffle: true
-    batch_size_per_card: 256
+    batch_size_per_card: 128
     drop_last: true
-    num_workers: 8
+    num_workers: 64
     use_shared_memory: true
 Eval:
   dataset:
@@ -109,7 +113,7 @@ Eval:
         channel_first: false
     - MultiLabelEncode: null
     - SARRecResizeImg:
-        image_shape:  [3, 32, 48, 640]
+        image_shape:  [3, 32, 48, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
@@ -117,5 +121,5 @@ Eval:
   loader:
     shuffle: false
     drop_last: false
-    batch_size_per_card: 128
-    num_workers: 4
+    batch_size_per_card: 64
+    num_workers: 16

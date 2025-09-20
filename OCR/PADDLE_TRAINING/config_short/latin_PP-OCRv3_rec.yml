@@ -1,7 +1,7 @@
 Global:
   debug: false
   use_gpu: true
-  epoch_num: 20
+  epoch_num: 5
   log_smooth_window: 20
   print_batch_step: 100
   save_model_dir: ./output/rec_ppocr_v3_latin
@@ -85,7 +85,7 @@ Train:
     - RecAug: null
     - CTCLabelEncode: null
     - SVTRRecResizeImg:
-        image_shape: [3, 32, 640]
+        image_shape: [3, 32, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
@@ -113,7 +113,7 @@ Eval:
         channel_first: false
     - CTCLabelEncode: null
     - SVTRRecResizeImg:
-        image_shape: [3, 32, 640]
+        image_shape: [3, 32, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:

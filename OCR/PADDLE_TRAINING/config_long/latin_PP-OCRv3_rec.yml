@@ -85,7 +85,7 @@ Train:
     - RecAug: null
     - CTCLabelEncode: null
     - SVTRRecResizeImg:
-        image_shape: [3, 32, 640]
+        image_shape: [3, 32, 320]
         width_downsample_ratio: 0.25
         mode: v3
     - KeepKeys:
