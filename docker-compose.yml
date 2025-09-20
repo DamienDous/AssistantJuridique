@@ -56,7 +56,7 @@ services:
       - ${HOST_DATA_DIR_LONG}/img:/workspace/img
       - ${HOST_DATA_DIR_LONG}/anno:/workspace/anno
       - ./train_long/output:/workspace/output
-      - ./train_long/checkpoints:/opt/PaddleOCR/output
+      - ./train_long/output:/workspace/output
       - ./train_long/crops:/workspace/crops
       - ./eval:/workspace/eval
       - ./OCR/PADDLE_TRAINING/script:/workspace/script

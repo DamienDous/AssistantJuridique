@@ -46,21 +46,22 @@ def sha256_file(path, chunk=1024 * 1024):
             h.update(b)
     return h.hexdigest()
 
-def make_fingerprint(base, out_base, config_path=None):
+def make_fingerprint(base, out_base):
     """
     Hash global basé sur:
-      - out_base/train.txt, out_base/val.txt, out_base/charset.txt (si existent)
       - tous les .png sous base/crops/
+      - charset.txt (si fourni)
       - config YAML (si fourni)
       - constante CACHE_VERSION
     """
     candidates = []
 
-    for name in ("train.txt", "val.txt", "charset.txt"):
-        p = os.path.join(out_base, name)
-        if os.path.isfile(p):
-            candidates.append(p)
+    # charset
+    p = os.path.join(out_base, "charset.txt")
+    if os.path.isfile(p):
+        candidates.append(p)
 
+    # crops
     crops_dir = os.path.join(base, "crops")
     if os.path.isdir(crops_dir):
         for root, _, files in os.walk(crops_dir):
@@ -68,8 +69,9 @@ def make_fingerprint(base, out_base, config_path=None):
                 if fn.lower().endswith(".png"):
                     candidates.append(os.path.join(root, fn))
 
-    if config_path and os.path.isfile(config_path):
-        candidates.append(config_path)
+    # config YAML
+    # if config_path and os.path.isfile(config_path):
+    #     candidates.append(config_path)
 
     agg = hashlib.sha256()
     agg.update(CACHE_VERSION.encode("utf-8"))
@@ -233,7 +235,6 @@ def main():
     ap.add_argument('--out_base', required=False, default=None,
                     help="Répertoire de sortie (train.txt, val.txt, cache). Défaut = base")
     ap.add_argument('--char', required=True, help="charset.txt")
-    ap.add_argument('--config', default=None, help="Chemin YAML à inclure dans le fingerprint (optionnel)")
     ap.add_argument('--max_len', type=int, default=256)
     ap.add_argument('--expect_width', type=int, default=320)
     ap.add_argument('--hstride', type=int, default=4)
@@ -257,7 +258,7 @@ def main():
         except Exception as e:
             print(f"[WARN] Impossible de lire charset.txt ({e}) -> filtre OOV désactivé.", file=sys.stderr)
 
-    new_hash = make_fingerprint(base=base, out_base=out_base, config_path=args.config)
+    new_hash = make_fingerprint(base=base, out_base=out_base)
     old_hash = None
     if os.path.isfile(hash_file):
         try:

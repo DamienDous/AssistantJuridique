@@ -10,17 +10,19 @@ def parse_args():
     ap.add_argument("--json_dir", required=True)
     ap.add_argument("--img_dir", required=True)
     ap.add_argument("--glob_dir", required=True)
-    ap.add_argument("--val_split", type=float, default=0.1, help="part de validation (par rapport au total)")
-    ap.add_argument("--test_split", type=float, default=0.1, help="part de test (par rapport au total)")
-    ap.add_argument("--maxlen", type=int, default=0, help="0=illimité")
-    ap.add_argument("--incremental", action="store_true", help="Ne recroppe que les nouveaux/maj.")
-    ap.add_argument("--force", action="store_true", help="Ignore le cache et régénère.")
-    ap.add_argument("--cache_file", default=None, help="Chemin du manifest cache (json).")
-    # Nouveaux
-    ap.add_argument("--workers", type=int, default=0, help="0 = os.cpu_count()")
+    ap.add_argument("--val_split", type=float, default=0.1)
+    ap.add_argument("--test_split", type=float, default=0.1)
+    ap.add_argument("--maxlen", type=int, default=0, help="longueur max du texte (0=illimité)")
+    ap.add_argument("--target_h", type=int, default=48)
+    ap.add_argument("--target_w", type=int, default=320)
+    ap.add_argument("--hstride", type=int, default=4, help="stride horizontal utilisé par le backbone")
+    ap.add_argument("--incremental", action="store_true")
+    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--cache_file", default=None)
+    ap.add_argument("--workers", type=int, default=0)
     ap.add_argument("--save_format", choices=["png","jpg"], default="png")
     ap.add_argument("--jpg_quality", type=int, default=95)
-    ap.add_argument("--png_compress", type=int, default=1)  # 0..9 (1 = rapide)
+    ap.add_argument("--png_compress", type=int, default=1)
     return ap.parse_args()
 
 # ----------------- UTILS -----------------
@@ -106,6 +108,18 @@ def safe_crop(im: Image.Image, box):
         return None
     return im.crop((x1, y1, x2, y2))
 
+def resize_with_padding(img: Image.Image, target_h: int, target_w: int) -> Image.Image:
+    """Resize + pad en blanc pour matcher (target_h, target_w)."""
+    w, h = img.size
+    scale = target_h / h
+    new_w = int(w * scale)
+    img_resized = img.resize((new_w, target_h), Image.Resampling.LANCZOS)
+    if new_w >= target_w:
+        return img_resized.crop((0,0,target_w,target_h))
+    new_img = Image.new("RGB", (target_w, target_h), (255,255,255))
+    new_img.paste(img_resized, (0,0))
+    return new_img
+
 def read_cache(cache_file: Path):
     if not cache_file.exists(): return None
     try:
@@ -120,16 +134,15 @@ def write_cache(cache_file: Path, payload: dict):
 
 # ----------------- WORKER -----------------
 def process_one_image(task):
-    (ip_str, jp_str, crops_dir_str, incremental, old_pairs_frozen, maxlen,
-     save_format, jpg_quality, png_compress) = task
+    (ip_str, jp_str, crops_dir_str, incremental, old_pairs_frozen,
+     maxlen, save_format, jpg_quality, png_compress,
+     target_h, target_w, hstride) = task
+
+    max_timesteps = max(1, target_w // max(1,hstride)) - 2
 
     crops_dir = Path(crops_dir_str)
     pairs = []
-    created = 0
-    skipped_existing = 0
-    warn_empty = 0
-    warn_json_bad = 0
-    warn_img_bad = 0
+    created = skipped_existing = warn_empty = warn_json_bad = warn_img_bad = 0
 
     try:
         data = load_json(Path(jp_str))
@@ -156,8 +169,16 @@ def process_one_image(task):
             if not isinstance(txt, str) or not txt.strip():
                 warn_empty += 1
                 continue
+            if len(txt) > max_timesteps:
+                # texte trop long pour le modèle → skip
+                continue
+
             bxyxy = bbox_to_xyxy(c.get("bbox"))
             if not bxyxy:
+                continue
+
+            crop = safe_crop(im, bxyxy)
+            if crop is None:
                 continue
 
             stem = Path(ip_str).stem
@@ -165,27 +186,27 @@ def process_one_image(task):
             rel = f"crops/{stem}_{k:04d}{ext}"
             abs_p = crops_dir / Path(rel).name
 
-            if incremental and ((rel, txt.strip()) in old_pairs) and abs_p.exists():
+            if incremental and ((rel, txt) in old_pairs) and abs_p.exists():
                 skipped_existing += 1
+                if txt_clean == "":
+                    continue
                 pairs.append((rel, txt.strip()))
                 continue
 
-            crop = safe_crop(im, bxyxy)
-            if crop is None:
-                continue
+            # Resize with padding
+            crop_resized = resize_with_padding(crop, target_h, target_w)
 
             abs_p.parent.mkdir(parents=True, exist_ok=True)
             if save_format == "png":
-                crop.save(abs_p, compress_level=max(0, min(9, int(png_compress))), optimize=False)
+                crop_resized.save(abs_p, compress_level=max(0, min(9, int(png_compress))), optimize=False)
             else:
-                if crop.mode != "RGB":
-                    crop = crop.convert("RGB")
-                crop.save(abs_p, quality=max(1, min(100, int(jpg_quality))), subsampling=0, optimize=False)
+                crop_resized.save(abs_p, quality=max(1, min(100, int(jpg_quality))), subsampling=0, optimize=False)
 
             created += 1
-            if maxlen and len(txt) > maxlen:
-                txt = txt[:maxlen]
-            pairs.append((rel, txt.strip()))
+            txt_clean = txt.strip()
+            if txt_clean == "":
+                continue
+            pairs.append((rel, txt_clean))
 
     except Exception:
         pass
@@ -202,25 +223,21 @@ def main():
     crops_dir = glob_dir / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
-    cache_file = Path(args.cache_file) if args.cache_file else (crops_dir / ".cache/json2crops.manifest.json")
+    cache_file = Path(args.cache_file) if args.cache_file else (out_dir / ".cache/json2crops.manifest.json")
 
-    # CACHE
     digest_now, imgs_list, jsons_list = build_inputs_digest(img_dir, json_dir)
     cache = read_cache(cache_file)
-    if (not args.force) and cache and cache.get("inputs_digest") == digest_now and \
-       (out_dir/'train.txt').exists() and (out_dir/'val.txt').exists() and (out_dir/'test.txt').exists():
+    same_digest = cache and cache.get("inputs_digest") == digest_now
+    files_exist = all((out_dir/f).exists() for f in ["train.txt","val.txt","test.txt"])
+
+    if (not args.force) and same_digest and files_exist:
         print(f"[CACHE] Unchanged inputs, skip json2crops. (digest={digest_now[:12]})")
-        print(f"        train/val/test existants dans {out_dir}")
         return
 
-    # Index JSON
     idx_jsonstem, idx_origstem, idx_ph = index_json(json_dir)
-
-    # Liste d'images
     img_exts = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp")
     imgs = [Path(p) for p in imgs_list if Path(p).suffix.lower() in img_exts]
 
-    # Incrémental: old_pairs
     old_pairs = set()
     if args.incremental and cache and isinstance(cache.get("pairs"), list):
         for p in cache["pairs"]:
@@ -228,7 +245,6 @@ def main():
                 old_pairs.add(tuple(p))
     old_pairs_frozen = frozenset(old_pairs)
 
-    # Mapper image -> json
     tasks = []
     warn_missing = 0
     for ip in imgs:
@@ -239,7 +255,8 @@ def main():
         tasks.append((str(ip), str(jp), str(crops_dir),
                       bool(args.incremental), old_pairs_frozen,
                       int(args.maxlen), args.save_format,
-                      int(args.jpg_quality), int(args.png_compress)))
+                      int(args.jpg_quality), int(args.png_compress),
+                      int(args.target_h), int(args.target_w), int(args.hstride)))
 
     if not tasks:
         print("[FATAL] Aucune image éligible.")
@@ -265,7 +282,6 @@ def main():
         print("[FATAL] Aucun pair crop/texte généré.")
         return
 
-    # Shuffle & Split  train / val / test
     random.shuffle(all_pairs)
     n = len(all_pairs)
     n_val = max(1, int(round(n * args.val_split)))
@@ -280,6 +296,14 @@ def main():
     def save_pairs(pairs, path):
         with open(path, "w", encoding="utf-8") as f:
             for p, t in pairs:
+                # Nettoyage
+                if not p or not t:
+                    continue
+                p = p.strip()
+                t = t.strip()
+                if p == "" or t == "":
+                    print("key deleted")
+                    continue
                 f.write(f"{p}\t{t}\n")
 
     save_pairs(train, out_dir/'train.txt')
