@@ -1,0 +1,11 @@
+Global:
+  use_gpu: true
+  max_text_length: 25
+
+PostProcess:
+  name: DBPostProcess
+  thresh: 0.3
+  box_thresh: 0.6
+  unclip_ratio: 1.5
+  use_dilation: false
+  score_mode: "fast"

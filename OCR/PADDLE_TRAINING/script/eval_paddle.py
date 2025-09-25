@@ -7,22 +7,11 @@ from pathlib import Path
 import pytesseract
 from Levenshtein import distance as lev_dist
 from tools.program import load_config
-from paddleocr import TextDetection
 from ppocr.modeling.architectures import build_model
 from ppocr.postprocess import CTCLabelDecode, SARLabelDecode, DBPostProcess
 from ppocr.postprocess import build_post_process
-
-import shutil
-
-# Copie auto du config si absent
-det_cfg_src = "/workspace/det/PP-OCRv5_server_det_infer/inference.yml"
-det_cfg_dst = "/workspace/config/inference_det.yml"
-
-if not os.path.exists(det_cfg_dst):
-    print(f"[INFO] Copie du config {det_cfg_src} → {det_cfg_dst}")
-    shutil.copy(det_cfg_src, det_cfg_dst)
-else:
-    print(f"[INFO] Utilisation du config existant : {det_cfg_dst}")
+from paddleocr import PaddleOCR
+import yaml
 
 # --------------------------
 # Metrics
@@ -74,7 +63,7 @@ def ensure_gt(page_file, gt_dir, json_dir):
 # Prétraitement page
 # --------------------------
 def preprocess_page(img_path, target_size=960):
-    img = cv2.imread(img_path).astype("float32")
+    img = cv2.imread(img_path)
     if img is None:
         raise FileNotFoundError(img_path)
 
@@ -82,32 +71,27 @@ def preprocess_page(img_path, target_size=960):
     scale = target_size / max(h, w)
     new_h, new_w = int(h * scale), int(w * scale)
     resized = cv2.resize(img, (new_w, new_h))
+
+    # Canvas carré blanc
     canvas = np.ones((target_size, target_size, 3), dtype=np.float32) * 255
     canvas[:new_h, :new_w] = resized
 
-    canvas /= 255.0
-    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-    std  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-    canvas = (canvas - mean) / std
+    # Normalisation simple [0,1]
+    canvas = canvas.astype("float32") / 255.0
 
-    ratio_h, ratio_w = scale, scale
-    return canvas, (h, w, ratio_h, ratio_w)
-
+    return canvas, (h, w, scale, scale)
 # --------------------------
 # Charger modèle DBNet
 # --------------------------
-def load_det_model(infer_dir):
-    """
-    Charge un modèle de détection (DBNet) exporté en mode inference
-    :param infer_dir: dossier contenant inference.pdiparams + inference.yml + inference.json
-    :return: instance TextDetection
-    """
-    model = TextDetection(
-        model_name=None,          # sinon il essaie de télécharger HuggingFace
-        model_dir=infer_dir,      # ton dossier local
-        device="gpu"              # ou "cpu"
-    )
-    return model
+def load_det_model(cfg_path, ckpt_path):
+    print(f"[INFO] Chargement modèle inference depuis {ckpt_path}")
+    model = paddle.jit.load(ckpt_path)
+    model.eval()
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+
+    det_post = DBPostProcess(**cfg["PostProcess"], global_config=cfg["Global"])
+    return model, det_post
 
 def debug_draw_boxes(img, boxes, page_name="page"):
     """
@@ -129,52 +113,39 @@ def debug_draw_boxes(img, boxes, page_name="page"):
     print(f"[DEBUG] Boxes visualisées → {out_path}")
 
 def detect_text_boxes(model, post, img, shape_list):
-    tensor = paddle.to_tensor(img.astype("float32").transpose(2,0,1)[np.newaxis])
-    with paddle.no_grad():
-        outs_dict = model(tensor)
-        for k, v in outs_dict.items():
-            print(f"[DEBUG] {k} shape: {v.shape}")
-    if isinstance(outs_dict, dict):
-        if "maps" in outs_dict:
-            preds = outs_dict["maps"]
-            print("[DEBUG] Using outs_dict['maps'], shape:", preds.shape)
-        elif "Student" in outs_dict and isinstance(outs_dict["Student"], dict):
-            preds = outs_dict["Student"].get("maps", None)
-            print("[DEBUG] Using Student['maps'], shape:", None if preds is None else preds.shape)
-        else:
-            preds = list(outs_dict.values())[0]
-            print("[DEBUG] Using first value, shape:", preds.shape)
-    else:
-        preds = outs_dict
-        print("[DEBUG] outs_dict not dict, shape:", preds.shape)
+    # Préparer l'image pour le modèle
+    tensor = paddle.to_tensor(img.astype("float32").transpose(2, 0, 1)[np.newaxis])
 
-    # Toujours envelopper dans un dict pour DBPostProcess
+    # Prédiction
+    with paddle.no_grad():
+        outs = model(tensor)
+
+    # Récupérer les cartes de probabilité
+    if isinstance(outs, dict):
+        preds = outs.get("maps", list(outs.values())[0])
+    else:
+        preds = outs
     preds = {"maps": preds}
 
-    # Postprocess
-    shape = np.array([shape_list], dtype=np.float32)
-    result = post(preds, shape)
-    print(f"[DEBUG] shape passed to post: {shape}")
-    print(f"[DEBUG] post() returned {type(result)}, len {len(result)}")
+    # Préparer les dimensions pour le post-process
+    ori_h, ori_w, ratio_h, ratio_w = shape_list
+    shape = np.array([[ori_h, ori_w, ratio_h, ratio_w]], dtype=np.float32)
 
-    boxes, scores = [], []
-    for i, item in enumerate(result):
+    # Post-traitement (DBPostProcess)
+    result = post(preds, shape)
+
+    # Extraire les boîtes
+    boxes = []
+    for item in result:
         if isinstance(item, dict) and "points" in item:
             pts = np.array(item["points"])
-            print(f"[DEBUG] Box #{i} points shape:", pts.shape)
             if pts.ndim == 2 and pts.shape[1] == 2:
                 boxes.append(pts.astype(int))
             elif pts.ndim == 3 and pts.shape[1] == 4 and pts.shape[2] == 2:
-                for j, sub in enumerate(pts):
-                    print(f"[DEBUG] → Ajout sous-box {j} shape {sub.shape}")
+                for sub in pts:
                     boxes.append(sub.astype(int))
-            else:
-                print(f"[WARN] Shape non gérée: {pts.shape}")
-        else:
-            print(f"[WARN] Box #{i} ignoré, type inattendu:", type(item))
 
-    return boxes, scores if scores else None
-
+    return boxes, None
 
 # --------------------------
 # Charger modèle MultiHead
@@ -244,10 +215,17 @@ def infer_crop(model, post, crop):
         preds = model(img)
 
     # Forcer uniquement CTC
-    if isinstance(preds, dict) and "ctc" in preds:
-        return post["CTCLabelDecode"](preds["ctc"])[0][0]
+    if isinstance(preds, dict):
+        if "ctc" in preds:
+            decoded = post["CTCLabelDecode"](preds["ctc"])
+            return decoded[0][0]
+        else:
+            # fallback si pas de clé "ctc"
+            decoded = post["CTCLabelDecode"](list(preds.values())[0])
+            return decoded[0][0]
     else:
-        return post["CTCLabelDecode"](preds)[0][0]
+        decoded = post["CTCLabelDecode"](preds)
+        return decoded[0][0]
 
 def load_gt_bboxes(json_path):
     data = json.load(open(json_path, encoding="utf-8"))
@@ -261,33 +239,45 @@ def load_gt_bboxes(json_path):
 # --------------------------
 # OCR complet d'une page
 # --------------------------
-def ocr_page(det_model, rec_model, rec_post, img_path):
+def ocr_page(det_model, det_post, rec_model, rec_post, img_path):
     original_img = cv2.imread(img_path)
     if original_img is None:
         raise FileNotFoundError(img_path)
 
-    # 🔹 prédiction PaddleOCR
-    results = det_model.predict(img_path, batch_size=1)
+    img, shape_list = preprocess_page(img_path)
+    boxes, scores = detect_text_boxes(det_model, det_post, img, shape_list)
+    debug_draw_boxes(original_img, boxes, Path(img_path).stem)
 
     preds = []
-    for res in results:
-        for poly in res.res["dt_polys"]:
-            x_min, y_min = np.min(poly[:,0]), np.min(poly[:,1])
-            x_max, y_max = np.max(poly[:,0]), np.max(poly[:,1])
-            crop = original_img[int(y_min):int(y_max), int(x_min):int(x_max)]
-            if crop.size == 0:
-                continue
-            txt_ctc = infer_crop(rec_model, rec_post, crop)
-            preds.append((y_min, x_min, txt_ctc))
+    print(f"[DEBUG] boxes type={type(boxes)} len={len(boxes) if hasattr(boxes,'__len__') else 'NA'}")
+
+    for i, box in enumerate(boxes):
+        box = np.array(box)
+        if box.ndim != 2 or box.shape[1] != 2:
+            print(f"[WARN] Box #{i} ignorée, shape inattendue: {box.shape}")
+            continue
+
+        x_min, y_min = np.min(box[:, 0]), np.min(box[:, 1])
+        x_max, y_max = np.max(box[:, 0]), np.max(box[:, 1])
+
+        crop = original_img[int(y_min):int(y_max), int(x_min):int(x_max)]
+        if crop.size == 0:
+            print(f"[WARN] Box #{i} → crop vide")
+            continue
+
+        txt_ctc = infer_crop(rec_model, rec_post, crop)
+        preds.append((y_min, x_min, txt_ctc))
 
     preds.sort()
     return " ".join([f"[CTC:{p[2]}]" for p in preds])
+
 
 # --------------------------
 # Main
 # --------------------------
 if __name__=="__main__":
-    det_infer_dir = "/workspace/pretrain_models/PP-OCRv5_server_det_infer"
+    det_cfg = "/workspace/config/ch_PP-OCRv4_det_infer.yml"
+    det_ckpt = "/workspace/models/ch_PP-OCRv4_det_infer/inference"
     rec_cfg = "/workspace/config/latin_PP-OCRv3_rec.multihead.yml"
     rec_ckpt = "./output/rec_ppocr_v3_latin/latest"
     
@@ -298,7 +288,7 @@ if __name__=="__main__":
     print(f"[INFO] pages_dir={pages_dir} exists={Path(pages_dir).exists()}")
     print(f"[INFO] json_dir={json_dir} exists={Path(json_dir).exists()}")
 
-    det_model, det_post = load_det_model(det_infer_dir)
+    det_model, det_post = load_det_model(det_cfg, det_ckpt)
     rec_model, rec_post = load_rec_model(rec_cfg, rec_ckpt)
 
     results_csv = "/workspace/eval/eval_pages.csv"
