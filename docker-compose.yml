@@ -120,6 +120,13 @@ services:
       - ./eval:/workspace/eval
       - ./debug_crops:/workspace/debug_crops
       - ./debug_boxes:/workspace/debug_boxes
+      - ./models:/workspace/models
+  export_model:
+    build:
+      context: .
+      dockerfile: Dockerfile_paddle_export
+    volumes:
+      - ./models:/workspace/exported_models
 
 volumes:
   ocrdata:

@@ -10,6 +10,7 @@ train_short/
 eval/
 debug_boxes/
 debug_crops/
+models/
 
 # 🧪 Environnements Python
 .env/
