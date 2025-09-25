@@ -7,9 +7,22 @@ from pathlib import Path
 import pytesseract
 from Levenshtein import distance as lev_dist
 from tools.program import load_config
-
+from paddleocr import TextDetection
 from ppocr.modeling.architectures import build_model
 from ppocr.postprocess import CTCLabelDecode, SARLabelDecode, DBPostProcess
+from ppocr.postprocess import build_post_process
+
+import shutil
+
+# Copie auto du config si absent
+det_cfg_src = "/workspace/det/PP-OCRv5_server_det_infer/inference.yml"
+det_cfg_dst = "/workspace/config/inference_det.yml"
+
+if not os.path.exists(det_cfg_dst):
+    print(f"[INFO] Copie du config {det_cfg_src} → {det_cfg_dst}")
+    shutil.copy(det_cfg_src, det_cfg_dst)
+else:
+    print(f"[INFO] Utilisation du config existant : {det_cfg_dst}")
 
 # --------------------------
 # Metrics
@@ -60,46 +73,41 @@ def ensure_gt(page_file, gt_dir, json_dir):
 # --------------------------
 # Prétraitement page
 # --------------------------
-def preprocess_page(img_path):
-    original_img = cv2.imread(img_path)
-    if original_img is None:
+def preprocess_page(img_path, target_size=960):
+    img = cv2.imread(img_path).astype("float32")
+    if img is None:
         raise FileNotFoundError(img_path)
-    print(f"[DEBUG] Original image shape: {original_img.shape}")
 
-    src_h, src_w = original_img.shape[:2]
+    h, w = img.shape[:2]
+    scale = target_size / max(h, w)
+    new_h, new_w = int(h * scale), int(w * scale)
+    resized = cv2.resize(img, (new_w, new_h))
+    canvas = np.ones((target_size, target_size, 3), dtype=np.float32) * 255
+    canvas[:new_h, :new_w] = resized
 
-    # ⚠️ On coupe pour avoir un multiple de 32
-    new_h = src_h - (src_h % 32)
-    new_w = src_w - (src_w % 32)
+    canvas /= 255.0
+    mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    std  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+    canvas = (canvas - mean) / std
 
-    if new_h != src_h or new_w != src_w:
-        img = original_img[:new_h, :new_w]
-    else:
-        img = original_img.copy()
-
-    resized_h, resized_w = img.shape[:2]
-
-    # Comme on ne fait plus de resize → ratios = 1.0
-    ratio_h, ratio_w = 1.0, 1.0
-    shape_list = (src_h, src_w, ratio_h, ratio_w)
-
-    print(f"[DEBUG] Cropped image shape: ({resized_h}, {resized_w})")
-    print(f"[DEBUG] shape_list: {shape_list}")
-
-    return img, shape_list
+    ratio_h, ratio_w = scale, scale
+    return canvas, (h, w, ratio_h, ratio_w)
 
 # --------------------------
 # Charger modèle DBNet
 # --------------------------
-def load_det_model(cfg_path, ckpt_path):
-    cfg = load_config(cfg_path)
-    cfg["Global"]["pretrained_model"] = ckpt_path
-    model = build_model(cfg["Architecture"])
-    state_dict = paddle.load(ckpt_path + ".pdiparams")
-    model.set_state_dict(state_dict)
-    model.eval()
-    post = DBPostProcess(**cfg["PostProcess"], global_config=cfg["Global"])
-    return model, post
+def load_det_model(infer_dir):
+    """
+    Charge un modèle de détection (DBNet) exporté en mode inference
+    :param infer_dir: dossier contenant inference.pdiparams + inference.yml + inference.json
+    :return: instance TextDetection
+    """
+    model = TextDetection(
+        model_name=None,          # sinon il essaie de télécharger HuggingFace
+        model_dir=infer_dir,      # ton dossier local
+        device="gpu"              # ou "cpu"
+    )
+    return model
 
 def debug_draw_boxes(img, boxes, page_name="page"):
     """
@@ -124,40 +132,32 @@ def detect_text_boxes(model, post, img, shape_list):
     tensor = paddle.to_tensor(img.astype("float32").transpose(2,0,1)[np.newaxis])
     with paddle.no_grad():
         outs_dict = model(tensor)
-
-    if "Student" in outs_dict and isinstance(outs_dict["Student"], dict):
-        preds = outs_dict["Student"].get("maps", None)
-        print("[DEBUG] Using Student['maps'], shape:", None if preds is None else preds.shape)
-    elif "maps" in outs_dict:
-        preds = outs_dict["maps"]
-        print("[DEBUG] Using outs_dict['maps'], shape:", preds.shape)
-    else:
-        print("[ERROR] Aucun 'maps' trouvé. Keys:", outs_dict.keys())
-        return []
-
-    print("[DEBUG] detect_text_boxes keys:", outs_dict.keys() if isinstance(outs_dict, dict) else type(outs_dict))
-
-    # Toujours construire un dict avec "maps"
+        for k, v in outs_dict.items():
+            print(f"[DEBUG] {k} shape: {v.shape}")
     if isinstance(outs_dict, dict):
         if "maps" in outs_dict:
             preds = outs_dict["maps"]
-        elif "Student" in outs_dict:
-            preds = outs_dict["Student"]
+            print("[DEBUG] Using outs_dict['maps'], shape:", preds.shape)
+        elif "Student" in outs_dict and isinstance(outs_dict["Student"], dict):
+            preds = outs_dict["Student"].get("maps", None)
+            print("[DEBUG] Using Student['maps'], shape:", None if preds is None else preds.shape)
         else:
             preds = list(outs_dict.values())[0]
+            print("[DEBUG] Using first value, shape:", preds.shape)
     else:
         preds = outs_dict
+        print("[DEBUG] outs_dict not dict, shape:", preds.shape)
+
+    # Toujours envelopper dans un dict pour DBPostProcess
+    preds = {"maps": preds}
 
     # Postprocess
-    src_h, src_w = img.shape[:2]
-    shape = np.array([[src_h, src_w, 1.0, 1.0]], dtype=np.float32)
+    shape = np.array([shape_list], dtype=np.float32)
     result = post(preds, shape)
     print(f"[DEBUG] shape passed to post: {shape}")
     print(f"[DEBUG] post() returned {type(result)}, len {len(result)}")
 
-    boxes = []
-    scores = []
-
+    boxes, scores = [], []
     for i, item in enumerate(result):
         if isinstance(item, dict) and "points" in item:
             pts = np.array(item["points"])
@@ -175,30 +175,51 @@ def detect_text_boxes(model, post, img, shape_list):
 
     return boxes, scores if scores else None
 
+
 # --------------------------
 # Charger modèle MultiHead
 # --------------------------
 def load_rec_model(cfg_path, ckpt_path):
+    import paddle
+
+    # 🔹 Forcer CPU
+    paddle.set_device("gpu")
+
     cfg = load_config(cfg_path)
     cfg["Global"]["pretrained_model"] = ckpt_path
+
+    # Compter les caractères
     with open(cfg["Global"]["character_dict_path"], encoding="utf-8") as f:
         num_chars = len(f.readlines())
-    if cfg["Global"].get("use_space_char", False): num_chars += 1
-    out_channels_list = {"CTCLabelDecode": num_chars, "SARLabelDecode": num_chars+1}
+    if cfg["Global"].get("use_space_char", False):
+        num_chars += 1
+
+    out_channels_list = {
+        "CTCLabelDecode": num_chars,
+        "SARLabelDecode": num_chars + 1
+    }
     print("[DEBUG] out_channels_list =", out_channels_list)
     cfg["Architecture"]["Head"]["out_channels_list"] = out_channels_list
 
+    # Charger modèle + poids (sans map_location)
     model = build_model(cfg["Architecture"])
-    state_dict = paddle.load(ckpt_path + ".pdparams")
-    model.set_state_dict(state_dict); model.eval()
+    state_dict = paddle.load(ckpt_path + ".pdparams")   # ✅ corrigé
+    model.set_state_dict(state_dict)
+    model.eval()
 
+    # Décodeurs de sortie
     post = {
-        "CTCLabelDecode": CTCLabelDecode(character_dict_path=cfg["Global"]["character_dict_path"],
-                                         use_space_char=cfg["Global"].get("use_space_char", False)),
-        "SARLabelDecode": SARLabelDecode(character_dict_path=cfg["Global"]["character_dict_path"],
-                                         max_text_length=cfg["Global"]["max_text_length"],
-                                         use_space_char=cfg["Global"].get("use_space_char", False))
+        "CTCLabelDecode": CTCLabelDecode(
+            character_dict_path=cfg["Global"]["character_dict_path"],
+            use_space_char=cfg["Global"].get("use_space_char", False)
+        ),
+        "SARLabelDecode": SARLabelDecode(
+            character_dict_path=cfg["Global"]["character_dict_path"],
+            max_text_length=cfg["Global"]["max_text_length"],
+            use_space_char=cfg["Global"].get("use_space_char", False)
+        )
     }
+
     return model, post
 
 def preprocess_crop(crop, target_h=48, target_w=320):
@@ -240,55 +261,33 @@ def load_gt_bboxes(json_path):
 # --------------------------
 # OCR complet d'une page
 # --------------------------
-def ocr_page(det_model, det_post, rec_model, rec_post, img_path):
-    # Charger l'image originale (celle du disque)
+def ocr_page(det_model, rec_model, rec_post, img_path):
     original_img = cv2.imread(img_path)
     if original_img is None:
         raise FileNotFoundError(img_path)
 
-    # Prétraitement pour le modèle (resize+pad)
-    img, shape_list = preprocess_page(img_path)
-    
-    # Détection
-    boxes, scores = detect_text_boxes(det_model, det_post, img, shape_list)
-    debug_draw_boxes(original_img, boxes, Path(img_path).stem)
+    # 🔹 prédiction PaddleOCR
+    results = det_model.predict(img_path, batch_size=1)
 
     preds = []
-    print(f"[DEBUG] boxes type={type(boxes)} len={len(boxes) if hasattr(boxes,'__len__') else 'NA'}")
-
-    for i, box in enumerate(boxes):
-        box = np.array(box)
-        if box.ndim != 2 or box.shape[1] != 2:
-            print(f"[WARN] Box #{i} ignorée, shape inattendue: {box.shape}")
-            continue
-
-        x_min, y_min = np.min(box[:,0]), np.min(box[:,1])
-        x_max, y_max = np.max(box[:,0]), np.max(box[:,1])
-
-        # 🚨 cropper dans l’image originale
-        crop = original_img[int(y_min):int(y_max), int(x_min):int(x_max)]
-
-        if crop.size == 0:
-            print(f"[WARN] Box #{i} → crop vide")
-            continue
-
-        print(f"[DEBUG] GT vs Det Box #{i}")
-        print(f" → Det box: x[{x_min:.1f},{x_max:.1f}] y[{y_min:.1f},{y_max:.1f}]")
-
-        txt = infer_crop(rec_model, rec_post, crop)
-        preds.append((y_min, x_min, txt))
+    for res in results:
+        for poly in res.res["dt_polys"]:
+            x_min, y_min = np.min(poly[:,0]), np.min(poly[:,1])
+            x_max, y_max = np.max(poly[:,0]), np.max(poly[:,1])
+            crop = original_img[int(y_min):int(y_max), int(x_min):int(x_max)]
+            if crop.size == 0:
+                continue
+            txt_ctc = infer_crop(rec_model, rec_post, crop)
+            preds.append((y_min, x_min, txt_ctc))
 
     preds.sort()
-    return " ".join([p[2] for p in preds])
-
-
+    return " ".join([f"[CTC:{p[2]}]" for p in preds])
 
 # --------------------------
 # Main
 # --------------------------
 if __name__=="__main__":
-    det_cfg = "/workspace/pretrain_models/det/inference.yml"
-    det_ckpt = "/workspace/pretrain_models/det/inference"
+    det_infer_dir = "/workspace/pretrain_models/PP-OCRv5_server_det_infer"
     rec_cfg = "/workspace/config/latin_PP-OCRv3_rec.multihead.yml"
     rec_ckpt = "./output/rec_ppocr_v3_latin/latest"
     
@@ -299,7 +298,7 @@ if __name__=="__main__":
     print(f"[INFO] pages_dir={pages_dir} exists={Path(pages_dir).exists()}")
     print(f"[INFO] json_dir={json_dir} exists={Path(json_dir).exists()}")
 
-    det_model, det_post = load_det_model(det_cfg, det_ckpt)
+    det_model, det_post = load_det_model(det_infer_dir)
     rec_model, rec_post = load_rec_model(rec_cfg, rec_ckpt)
 
     results_csv = "/workspace/eval/eval_pages.csv"

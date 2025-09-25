@@ -8,17 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr libtesseract-dev wget && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir python-Levenshtein pytesseract opencv-python-headless pyyaml
+RUN pip install --no-cache-dir python-Levenshtein pytesseract opencv-python-headless pyyaml fastdeploy-python
+RUN pip install --upgrade fastdeploy-python -f https://www.paddlepaddle.org.cn/whl/fastdeploy.html
+RUN pip install --upgrade paddleocr
 
-# 📥 Télécharger les modèles PP-OCRv5 
-WORKDIR /workspace/pretrain_models
-RUN mkdir -p det rec && \
-    wget -O PP-OCRv5_server_det_infer.tar \
-        https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_det_infer.tar && \
-        tar -xf PP-OCRv5_server_det_infer.tar -C det/ && rm PP-OCRv5_server_det_infer.tar && \
-    wget -O PP-OCRv5_server_rec_infer.tar \
-        https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar && \
-    tar -xf PP-OCRv5_server_rec_infer.tar -C rec/ && rm PP-OCRv5_server_rec_infer.tar
 WORKDIR /workspace
 COPY OCR/PADDLE_TRAINING/script/eval_paddle.py /workspace/script/eval_paddle.py
 
