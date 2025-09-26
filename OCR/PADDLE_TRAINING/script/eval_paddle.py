@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os, cv2, csv, json, paddle
+import os, cv2, csv, json, paddle, yaml
 import numpy as np
 from pathlib import Path
 import pytesseract
 from Levenshtein import distance as lev_dist
 from tools.program import load_config
 from ppocr.modeling.architectures import build_model
-from ppocr.postprocess import CTCLabelDecode, SARLabelDecode, DBPostProcess
+from ppocr.postprocess import DBPostProcess
 from ppocr.postprocess import build_post_process
-from paddleocr import PaddleOCR
-import yaml
+from ppocr.utils.save_load import load_model
 
 # --------------------------
 # Metrics
@@ -113,85 +112,61 @@ def debug_draw_boxes(img, boxes, page_name="page"):
     print(f"[DEBUG] Boxes visualisées → {out_path}")
 
 def detect_text_boxes(model, post, img, shape_list):
-    # Préparer l'image pour le modèle
-    tensor = paddle.to_tensor(img.astype("float32").transpose(2, 0, 1)[np.newaxis])
-
-    # Prédiction
+    tensor = paddle.to_tensor(img.astype("float32").transpose(2,0,1)[np.newaxis])
     with paddle.no_grad():
-        outs = model(tensor)
+        preds = model(tensor)
 
-    # Récupérer les cartes de probabilité
-    if isinstance(outs, dict):
-        preds = outs.get("maps", list(outs.values())[0])
+    if isinstance(preds, dict):
+        preds = preds.get("maps", list(preds.values())[0])
+        print("[DEBUG] dict output, shape:", preds.shape)
     else:
-        preds = outs
-    preds = {"maps": preds}
+        print("[DEBUG] raw Tensor, shape:", preds.shape)
 
-    # Préparer les dimensions pour le post-process
-    ori_h, ori_w, ratio_h, ratio_w = shape_list
-    shape = np.array([[ori_h, ori_w, ratio_h, ratio_w]], dtype=np.float32)
+    result = post({"maps": preds}, np.array([shape_list], dtype=np.float32))
+    print(f"[DEBUG] post() returned {type(result)}, len {len(result)}")
 
-    # Post-traitement (DBPostProcess)
-    result = post(preds, shape)
-
-    # Extraire les boîtes
     boxes = []
-    for item in result:
+    for i, item in enumerate(result):
         if isinstance(item, dict) and "points" in item:
-            pts = np.array(item["points"])
-            if pts.ndim == 2 and pts.shape[1] == 2:
+            pts_array = np.array(item["points"])
+            print(f"[DEBUG] item[{i}] contient {pts_array.shape[0]} boxes")
+            for pts in pts_array:
                 boxes.append(pts.astype(int))
-            elif pts.ndim == 3 and pts.shape[1] == 4 and pts.shape[2] == 2:
-                for sub in pts:
-                    boxes.append(sub.astype(int))
 
     return boxes, None
 
 # --------------------------
-# Charger modèle MultiHead
+# Charger modèle Reconnaissance (CTC only)
 # --------------------------
-def load_rec_model(cfg_path, ckpt_path):
-    import paddle
+def load_rec_model(config_path, ckpt_path):
+    # Charger la config YAML
+    cfg = load_config(config_path)
 
-    # 🔹 Forcer CPU
-    paddle.set_device("gpu")
+    # Postprocess (pour connaître nb de caractères)
+    post_process = build_post_process(cfg["PostProcess"], global_config=cfg.get("Global", {}))
+    char_num = len(post_process.character) if hasattr(post_process, "character") else 0
+    print(f"[INFO] nb chars (dictionnaire): {char_num}")
 
-    cfg = load_config(cfg_path)
-    cfg["Global"]["pretrained_model"] = ckpt_path
+    # Patch MultiHead ou simple Head
+    if cfg["Architecture"]["Head"]["name"] == "MultiHead":
+        out_channels_list = {
+            "CTCLabelDecode": char_num,
+            "SARLabelDecode": char_num + 2,
+            "NRTRLabelDecode": char_num + 3,
+        }
+        cfg["Architecture"]["Head"]["out_channels_list"] = out_channels_list
+        print("[INFO] MultiHead détecté → out_channels_list ajusté:", out_channels_list)
+    else:
+        cfg["Architecture"]["Head"]["out_channels"] = char_num
 
-    # Compter les caractères
-    with open(cfg["Global"]["character_dict_path"], encoding="utf-8") as f:
-        num_chars = len(f.readlines())
-    if cfg["Global"].get("use_space_char", False):
-        num_chars += 1
-
-    out_channels_list = {
-        "CTCLabelDecode": num_chars,
-        "SARLabelDecode": num_chars + 1
-    }
-    print("[DEBUG] out_channels_list =", out_channels_list)
-    cfg["Architecture"]["Head"]["out_channels_list"] = out_channels_list
-
-    # Charger modèle + poids (sans map_location)
+    # Construire le modèle
     model = build_model(cfg["Architecture"])
-    state_dict = paddle.load(ckpt_path + ".pdparams")   # ✅ corrigé
-    model.set_state_dict(state_dict)
+
+    # Charger les poids
+    load_model(config=cfg, model=model, optimizer=None, model_type="rec")
+
     model.eval()
-
-    # Décodeurs de sortie
-    post = {
-        "CTCLabelDecode": CTCLabelDecode(
-            character_dict_path=cfg["Global"]["character_dict_path"],
-            use_space_char=cfg["Global"].get("use_space_char", False)
-        ),
-        "SARLabelDecode": SARLabelDecode(
-            character_dict_path=cfg["Global"]["character_dict_path"],
-            max_text_length=cfg["Global"]["max_text_length"],
-            use_space_char=cfg["Global"].get("use_space_char", False)
-        )
-    }
-
-    return model, post
+    return model, post_process
 
 def preprocess_crop(crop, target_h=48, target_w=320):
     h, w = crop.shape[:2]; scale = target_h / h
@@ -202,30 +177,40 @@ def preprocess_crop(crop, target_h=48, target_w=320):
     canvas[:, :new_w, :] = resized
     return canvas
 
-def infer_crop(model, post, crop):
-    crop = preprocess_crop(crop)
-    debug_dir = "/workspace/debug_crops"
-    os.makedirs(debug_dir, exist_ok=True)
-    cv2.imwrite(os.path.join(debug_dir, f"crop_{np.random.randint(1e6)}.png"), crop)
-
-    img = crop.astype("float32")/255.
-    img = img.transpose((2,0,1))[np.newaxis,:]
-    img = paddle.to_tensor(img)
-    with paddle.no_grad():
-        preds = model(img)
-
-    # Forcer uniquement CTC
-    if isinstance(preds, dict):
-        if "ctc" in preds:
-            decoded = post["CTCLabelDecode"](preds["ctc"])
-            return decoded[0][0]
-        else:
-            # fallback si pas de clé "ctc"
-            decoded = post["CTCLabelDecode"](list(preds.values())[0])
-            return decoded[0][0]
+def safe_decode(post_func, preds):
+    out = post_func(preds, None)
+    if isinstance(out, tuple):
+        texts, scores = out
     else:
-        decoded = post["CTCLabelDecode"](preds)
-        return decoded[0][0]
+        texts, scores = out, None
+    if texts and isinstance(texts[0], (list, tuple)):
+        texts = [t[0] for t in texts]
+    return texts, scores
+
+def infer_crop(rec_model, post_ctc, crop):
+    import cv2, paddle
+
+    img = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+    img = cv2.resize(img, (320, 48)).astype("float32") / 255.0
+    img = img.transpose(2,0,1)
+
+    mean = np.array([0.5,0.5,0.5], dtype=np.float32).reshape(3,1,1)
+    std  = np.array([0.5,0.5,0.5], dtype=np.float32).reshape(3,1,1)
+    img = (img - mean) / std
+
+    img = paddle.to_tensor(img).unsqueeze(0)
+
+    preds = rec_model(img)
+
+    txt_ctc = ""
+    if isinstance(preds, dict) and "ctc" in preds:
+        texts, _ = safe_decode(post_ctc, preds["ctc"])
+        if texts: txt_ctc = texts[0]
+    elif isinstance(preds, paddle.Tensor):
+        texts, _ = safe_decode(post_ctc, preds)
+        if texts: txt_ctc = texts[0]
+
+    return txt_ctc
 
 def load_gt_bboxes(json_path):
     data = json.load(open(json_path, encoding="utf-8"))
@@ -269,6 +254,7 @@ def ocr_page(det_model, det_post, rec_model, rec_post, img_path):
         preds.append((y_min, x_min, txt_ctc))
 
     preds.sort()
+    print(preds)
     return " ".join([f"[CTC:{p[2]}]" for p in preds])
 
 
@@ -279,7 +265,7 @@ if __name__=="__main__":
     det_cfg = "/workspace/config/ch_PP-OCRv4_det_infer.yml"
     det_ckpt = "/workspace/models/ch_PP-OCRv4_det_infer/inference"
     rec_cfg = "/workspace/config/latin_PP-OCRv3_rec.multihead.yml"
-    rec_ckpt = "./output/rec_ppocr_v3_latin/latest"
+    rec_ckpt = "/workspace/output/rec_ppocr_v3_latin/latest.pdparams"
     
     pages_dir = "/workspace/img"     # dossier avec images
     json_dir  = "/workspace/anno"      # JSON avec les GT
