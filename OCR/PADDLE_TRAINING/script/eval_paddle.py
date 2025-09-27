@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os, cv2, csv, json, paddle, yaml
+import os, cv2, csv, json, paddle, yaml, math
 import numpy as np
 from pathlib import Path
 import pytesseract
@@ -11,6 +11,8 @@ from ppocr.modeling.architectures import build_model
 from ppocr.postprocess import DBPostProcess
 from ppocr.postprocess import build_post_process
 from ppocr.utils.save_load import load_model
+from ppocr.postprocess.rec_postprocess import CTCLabelDecode
+from ppocr.data import create_operators
 
 # --------------------------
 # Metrics
@@ -135,38 +137,52 @@ def detect_text_boxes(model, post, img, shape_list):
 
     return boxes, None
 
-# --------------------------
-# Charger modèle Reconnaissance (CTC only)
-# --------------------------
-def load_rec_model(config_path, ckpt_path):
-    # Charger la config YAML
-    cfg = load_config(config_path)
+def debug_charset(cfg):
+    dict_path = cfg["Global"]["character_dict_path"]
+    use_space_char = cfg["Global"].get("use_space_char", True)
 
-    # Postprocess (pour connaître nb de caractères)
-    post_process = build_post_process(cfg["PostProcess"], global_config=cfg.get("Global", {}))
-    char_num = len(post_process.character) if hasattr(post_process, "character") else 0
-    print(f"[INFO] nb chars (dictionnaire): {char_num}")
+    # lire le dictionnaire de base
+    with open(dict_path, "r", encoding="utf-8") as f:
+        characters = [line.strip() for line in f if line.strip()]
 
-    # Patch MultiHead ou simple Head
+    # ajouter l’espace si demandé
+    if use_space_char and " " not in characters:
+        characters.append(" ")
+
+    # MultiHead gère 2 décodeurs :
+    # - CTC ajoute un "blank"
+    # - SAR ajoute <sos>/<eos>
+    ctc_classes = len(characters) + 2   # +2 pour blank
+    sar_classes = len(characters) + 4   # +2 pour <sos> et <eos>
+
+    print(f"[DEBUG] dict={dict_path}, base={len(characters)}, "
+          f"CTC={ctc_classes}, SAR={sar_classes}")
+
+    return ctc_classes, sar_classes
+
+def load_rec_model(cfg_path, ckpt_path):
+    cfg = load_config(cfg_path)
+    # remplace ici le dict par ton fichier fixe
+    cfg["Global"]["character_dict_path"] = "/workspace/dict/latin_dict.txt"
+    cfg["Global"]["use_space_char"] = True
+
+    post_process_class = build_post_process(cfg["PostProcess"])
+
     if cfg["Architecture"]["Head"]["name"] == "MultiHead":
+        ctc_classes, sar_classes = debug_charset(cfg)
         out_channels_list = {
-            "CTCLabelDecode": char_num,
-            "SARLabelDecode": char_num + 2,
-            "NRTRLabelDecode": char_num + 3,
+            "CTCLabelDecode": ctc_classes,
+            "SARLabelDecode": sar_classes
         }
         cfg["Architecture"]["Head"]["out_channels_list"] = out_channels_list
-        print("[INFO] MultiHead détecté → out_channels_list ajusté:", out_channels_list)
-    else:
-        cfg["Architecture"]["Head"]["out_channels"] = char_num
+        print(f"[DEBUG] out_channels_list forcé → {out_channels_list}")
+        print("[DEBUG] Head normal")
 
-    # Construire le modèle
     model = build_model(cfg["Architecture"])
-
-    # Charger les poids
-    load_model(config=cfg, model=model, optimizer=None, model_type="rec")
-
+    load_model(cfg, model, model_type='rec')
     model.eval()
-    return model, post_process
+
+    return model, post_process_class
 
 def preprocess_crop(crop, target_h=48, target_w=320):
     h, w = crop.shape[:2]; scale = target_h / h
@@ -187,30 +203,74 @@ def safe_decode(post_func, preds):
         texts = [t[0] for t in texts]
     return texts, scores
 
-def infer_crop(rec_model, post_ctc, crop):
-    import cv2, paddle
+def build_rec_preprocess(config_path):
+    cfg = load_config(config_path)
 
-    img = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, (320, 48)).astype("float32") / 255.0
-    img = img.transpose(2,0,1)
+    ops = create_operators(cfg["Eval"]["dataset"]["transforms"], global_config=cfg.get("Global", {}))
+    return ops
 
-    mean = np.array([0.5,0.5,0.5], dtype=np.float32).reshape(3,1,1)
-    std  = np.array([0.5,0.5,0.5], dtype=np.float32).reshape(3,1,1)
-    img = (img - mean) / std
+def resize_norm_img_rec(img, image_shape=(3, 32, 320), padding=True):
+    """
+    Prétraitement des crops pour la reconnaissance OCR (rec_model).
+    - Redimensionne en gardant le ratio hauteur/largeur
+    - Normalise en [-1, 1]
+    - Ajoute du padding à droite si nécessaire
+    - Retourne un tableau float32 (C, H, W)
+    """
+    imgC, imgH, imgW = image_shape
 
-    img = paddle.to_tensor(img).unsqueeze(0)
+    h, w = img.shape[0:2]
+    ratio = w / float(h)
 
-    preds = rec_model(img)
+    # nouvelle largeur
+    if math.ceil(imgH * ratio) > imgW:
+        resized_w = imgW
+    else:
+        resized_w = int(math.ceil(imgH * ratio))
 
-    txt_ctc = ""
-    if isinstance(preds, dict) and "ctc" in preds:
-        texts, _ = safe_decode(post_ctc, preds["ctc"])
-        if texts: txt_ctc = texts[0]
-    elif isinstance(preds, paddle.Tensor):
-        texts, _ = safe_decode(post_ctc, preds)
-        if texts: txt_ctc = texts[0]
+    # resize
+    resized_image = cv2.resize(img, (resized_w, imgH))
 
-    return txt_ctc
+    # normalisation [0,255] → [-1,1]
+    resized_image = resized_image.astype("float32") / 255.
+    resized_image -= 0.5
+    resized_image /= 0.5
+
+    if padding:
+        # padding si la largeur < imgW
+        padding_im = np.zeros((imgH, imgW, imgC), dtype=np.float32)
+        padding_im[:, 0:resized_w, :] = resized_image
+    else:
+        padding_im = resized_image
+
+    # HWC → CHW
+    padding_im = padding_im.transpose((2, 0, 1))
+
+    return padding_im
+
+def infer_batch(rec_model, rec_post, crops):
+    if len(crops) == 0:
+        return []
+
+    # Prétraitement batch
+    imgs = [resize_norm_img_rec(crop) for crop in crops]
+    x = np.stack(imgs)  # (N, C, H, W)
+    x = paddle.to_tensor(x, dtype="float32")
+
+    preds = rec_model(x)
+
+    results = rec_post(preds)
+
+    texts = []
+    for i, res in enumerate(results):
+        if isinstance(res, tuple):
+            txt, score = res
+        else:
+            txt, score = res, None
+        print(f"[DEBUG][infer_batch] crop[{i}] -> '{txt}' (score={score}) shape={crops[i].shape}")
+        texts.append(txt)
+
+    return texts
 
 def load_gt_bboxes(json_path):
     data = json.load(open(json_path, encoding="utf-8"))
@@ -221,42 +281,176 @@ def load_gt_bboxes(json_path):
             bboxes.append((x, y, x+w, y+h, c.get("text","")))
     return bboxes
 
+def load_gt_from_json(json_path, sort_by_position=True):
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Les textes sont dans "cells"
+    cells = data.get("cells", [])
+    if not isinstance(cells, list):
+        return ""
+
+    items = []
+    for cell in cells:
+        text = cell.get("text", "").strip()
+        bbox = cell.get("bbox", [])
+        if text:
+            if sort_by_position and bbox and len(bbox) >= 2:
+                x, y = bbox[0], bbox[1]
+                items.append((y, x, text))
+            else:
+                items.append((0, 0, text))
+
+    # Tri par Y puis X
+    if sort_by_position:
+        items.sort(key=lambda t: (t[0], t[1]))
+
+    full_text = " ".join([it[2] for it in items])
+    return full_text.strip()
+
+def resize_img(img, max_side_len=960):
+    """Resize l'image tout en gardant le ratio et en limitant le côté max à max_side_len"""
+    h, w, _ = img.shape
+    ratio = 1.0
+    if max(h, w) > max_side_len:
+        ratio = float(max_side_len) / max(h, w)
+    resize_h = int(h * ratio)
+    resize_w = int(w * ratio)
+
+    resize_h = max(32, int(round(resize_h / 32) * 32))
+    resize_w = max(32, int(round(resize_w / 32) * 32))
+
+    img = cv2.resize(img, (resize_w, resize_h))
+    ratio_h = resize_h / float(h)
+    ratio_w = resize_w / float(w)
+
+    return img, (ratio_h, ratio_w)
+
+def prepare_det_input(img):
+    """Prépare une image pour le modèle de détection PaddleOCR"""
+    # Resize
+    img, ratio = resize_img(img)
+
+    # Normalisation [0,1]
+    img = img.astype("float32")
+    img = img / 255.0
+
+    # Normalisation avec mean/std comme dans PaddleOCR
+    mean = np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3)).astype("float32")
+    std = np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3)).astype("float32")
+    img = (img - mean) / std
+
+    # HWC -> CHW
+    img = img.transpose((2, 0, 1))
+
+    # Ajout batch dimension
+    img = np.expand_dims(img, axis=0)
+
+    # Conversion Paddle tensor
+    img = paddle.to_tensor(img)
+
+    return img, ratio
+
+def resize_norm_img_det(img, limit_side_len=960, limit_type='min'):
+    """
+    Prétraitement officiel PP-OCR pour la détection.
+    Redimensionne l'image à une taille compatible (multiple de 32).
+    """
+    h, w, _ = img.shape
+    if limit_type == 'min':
+        ratio = float(limit_side_len) / min(h, w)
+    else:
+        ratio = float(limit_side_len) / max(h, w)
+
+    resize_h = int(round(h * ratio / 32) * 32)
+    resize_w = int(round(w * ratio / 32) * 32)
+
+    img = cv2.resize(img, (resize_w, resize_h))
+
+    # normalisation
+    img = img.astype('float32')
+    img = img / 255.
+    img -= np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    img /= np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+    img = img.transpose((2, 0, 1))  # HWC → CHW
+    return img, (resize_h, resize_w)
+
+def get_dt_boxes(det_model, det_post, img):
+    img_resized, (resize_h, resize_w) = resize_norm_img_det(img)
+    x = np.expand_dims(img_resized, axis=0)  # [1, C, H, W]
+    x = paddle.to_tensor(x, dtype="float32")
+
+    pred = det_model(x)
+
+    outs_dict = {}
+    if isinstance(pred, (list, tuple)):
+        outs_dict['maps'] = pred[0]
+    else:
+        outs_dict['maps'] = pred
+
+    src_h, src_w = img.shape[:2]
+    ratio_h = float(resize_h) / src_h
+    ratio_w = float(resize_w) / src_w
+    shape_list = [(src_h, src_w, ratio_h, ratio_w)]
+
+    result = det_post(outs_dict, shape_list)
+
+    boxes = []
+    for i, item in enumerate(result):
+        if isinstance(item, dict) and "points" in item:
+            for pts in item["points"]:
+                boxes.append(np.array(pts, dtype=np.float32))
+        elif isinstance(item, (list, np.ndarray)):
+            boxes.append(np.array(item, dtype=np.float32))
+
+    return boxes
+
+def get_rotate_crop_image(img, points):
+    points = np.array(points).astype(np.float32)
+    
+    w = int(np.linalg.norm(points[0] - points[1]))
+    h = int(np.linalg.norm(points[0] - points[3]))
+    dst = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=np.float32)
+
+    M = cv2.getPerspectiveTransform(points, dst)
+    warped = cv2.warpPerspective(img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+    return warped
+
 # --------------------------
 # OCR complet d'une page
 # --------------------------
 def ocr_page(det_model, det_post, rec_model, rec_post, img_path):
-    original_img = cv2.imread(img_path)
-    if original_img is None:
-        raise FileNotFoundError(img_path)
+    img = cv2.imread(img_path)
+    if img is None:
+        raise FileNotFoundError(f"Impossible de lire {img_path}")
 
-    img, shape_list = preprocess_page(img_path)
-    boxes, scores = detect_text_boxes(det_model, det_post, img, shape_list)
-    debug_draw_boxes(original_img, boxes, Path(img_path).stem)
+    # 1. Détection
+    dt_boxes = get_dt_boxes(det_model, det_post, img)
+    if not isinstance(dt_boxes, list) or not dt_boxes:
+        print(f"[WARN] Aucune box détectée pour {img_path}")
+        return ""
 
-    preds = []
-    print(f"[DEBUG] boxes type={type(boxes)} len={len(boxes) if hasattr(boxes,'__len__') else 'NA'}")
+    # 2. Découpage
+    crops = []
+    for box in dt_boxes:
+        try:
+            crop = get_rotate_crop_image(img, box)
+            crops.append(crop)
+        except Exception as e:
+            print(f"[WARN] crop raté pour box={box}: {e}")
 
-    for i, box in enumerate(boxes):
-        box = np.array(box)
-        if box.ndim != 2 or box.shape[1] != 2:
-            print(f"[WARN] Box #{i} ignorée, shape inattendue: {box.shape}")
-            continue
+    print(f"[DEBUG][ocr_page] nb_crops={len(crops)}")
 
-        x_min, y_min = np.min(box[:, 0]), np.min(box[:, 1])
-        x_max, y_max = np.max(box[:, 0]), np.max(box[:, 1])
+    if not crops:
+        return ""
 
-        crop = original_img[int(y_min):int(y_max), int(x_min):int(x_max)]
-        if crop.size == 0:
-            print(f"[WARN] Box #{i} → crop vide")
-            continue
+    # 3. Reconnaissance
+    texts = infer_batch(rec_model, rec_post, crops)
 
-        txt_ctc = infer_crop(rec_model, rec_post, crop)
-        preds.append((y_min, x_min, txt_ctc))
-
-    preds.sort()
-    print(preds)
-    return " ".join([f"[CTC:{p[2]}]" for p in preds])
-
+    # 4. Assemblage (simple concaténation avec espace)
+    final_text = " ".join(texts)
+    return final_text.strip()
 
 # --------------------------
 # Main
@@ -266,7 +460,7 @@ if __name__=="__main__":
     det_ckpt = "/workspace/models/ch_PP-OCRv4_det_infer/inference"
     rec_cfg = "/workspace/config/latin_PP-OCRv3_rec.multihead.yml"
     rec_ckpt = "/workspace/output/rec_ppocr_v3_latin/latest.pdparams"
-    
+
     pages_dir = "/workspace/img"     # dossier avec images
     json_dir  = "/workspace/anno"      # JSON avec les GT
     gt_dir    = "/workspace/gt"
@@ -286,35 +480,47 @@ if __name__=="__main__":
     for ext in ["*.jpg", "*.jpeg", "*.png", "*.tif", "*.tiff"]:
         all_pages.extend(Path(pages_dir).glob(ext))
 
-    with open(results_csv,"w",newline="",encoding="utf-8") as csvfile:
+    with open(results_csv, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["page","ref","paddle","tesseract","cer_paddle","wer_paddle","cer_tess","wer_tess"])
+        writer.writerow([
+            "page", "ref", "paddle", "tesseract",
+            "cer_paddle", "wer_paddle", "cer_tess", "wer_tess"
+        ])
 
         count = 0
         for page_file in sorted(all_pages):
             print(f"[PAGE] Processing {page_file.name}")
-            gt_file = ensure_gt(page_file, gt_dir, json_dir)
-            if not gt_file or not gt_file.exists():
-                print(f"[SKIP] Pas de GT pour {page_file.name}")
+            json_file = Path(json_dir) / f"{page_file.stem}.json"
+
+            if not json_file.exists():
+                print(f"[SKIP] Pas de JSON pour {page_file.name}")
                 continue
 
-            ref = open(gt_file,encoding="utf-8").read().strip()
-            if not ref:
+            ref_full = load_gt_from_json(json_file)  # <-- nouvelle fonction décrite avant
+            if not ref_full:
                 print(f"[SKIP] GT vide pour {page_file.name}")
                 continue
 
+            # OCR Paddle (détection + reco)
             pred_paddle = ocr_page(det_model, det_post, rec_model, rec_post, str(page_file))
-            pred_tess   = pytesseract.image_to_string(cv2.imread(str(page_file)), lang="eng").strip()
 
-            print(f"[DEBUG] ref='{ref[:30]}...' pred_paddle='{pred_paddle[:30]}...'")
+            # OCR Tesseract (baseline)
+            pred_tess = pytesseract.image_to_string(
+                cv2.imread(str(page_file)), lang="eng"
+            ).strip()
 
-            cer_p, wer_p = cer(ref,pred_paddle), wer(ref,pred_paddle)
-            cer_t, wer_t = cer(ref,pred_tess), wer(ref,pred_tess)
+            print(f"[DEBUG] ref='{ref_full[:30]}...' pred_paddle='{pred_paddle[:30]}...'")
+
+            cer_p, wer_p = cer(ref_full, pred_paddle), wer(ref_full, pred_paddle)
+            cer_t, wer_t = cer(ref_full, pred_tess), wer(ref_full, pred_tess)
 
             total_cer_paddle.append(cer_p); total_wer_paddle.append(wer_p)
             total_cer_tess.append(cer_t); total_wer_tess.append(wer_t)
 
-            writer.writerow([page_file.name, ref, pred_paddle, pred_tess, cer_p, wer_p, cer_t, wer_t])
+            writer.writerow([
+                page_file.name, ref_full, pred_paddle, pred_tess,
+                cer_p, wer_p, cer_t, wer_t
+            ])
             count += 1
 
     print(f"[SUMMARY] Pages traitées: {count}")
