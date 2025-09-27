@@ -1,5 +1,5 @@
 # Dockerfile_paddle_ocr
-FROM paddlepaddle/paddle:2.5.2-gpu-cuda12.0-cudnn8.9-trt8.6
+FROM paddlepaddle/paddle:2.6.1-gpu-cuda11.2-cudnn8.2-trt8.0
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
@@ -13,7 +13,10 @@ RUN pip install --no-cache-dir "numpy<2.0" "imgaug<0.4.0"
 # Code PaddleOCR
 WORKDIR /opt
 ARG PADDLEOCR_REF=release/2.7
-RUN git clone --depth 1 --branch ${PADDLEOCR_REF} https://github.com/PaddlePaddle/PaddleOCR.git
+RUN git clone https://github.com/PaddlePaddle/PaddleOCR.git && \
+    cd PaddleOCR && \
+    git checkout ${PADDLEOCR_REF}
+ENV PYTHONPATH=/opt/PaddleOCR:$PYTHONPATH
 WORKDIR /opt/PaddleOCR
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip3 install -U pip "numpy<2" && pip3 install -r requirements.txt
