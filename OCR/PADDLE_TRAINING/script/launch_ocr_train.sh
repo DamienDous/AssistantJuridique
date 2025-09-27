@@ -8,13 +8,11 @@ IMG_DIR="$BASE_DIR/img"
 ANNO_DIR="$BASE_DIR/anno"
 OUT_DIR="$BASE_DIR/output"
 
-CONFIG="/workspace/config/latin_PP-OCRv3_rec.yml"                 # CTC-only (pour export/éval)
 CONFIG_MULTI="/workspace/config/latin_PP-OCRv3_rec.multihead.yml" # MultiHead (pour entraînement)
 DICT="/workspace/dict/latin_dict.txt"
 
 echo "=== launch_ocr_train.sh ==="
 echo "BASE_DIR    : $BASE_DIR"
-echo "CONFIG      : $CONFIG"
 echo "CONFIG_MULTI: $CONFIG_MULTI"
 echo "DICT        : $DICT"
 
@@ -59,7 +57,7 @@ python3 tools/train.py -c "$CONFIG_MULTI" \
 echo "▶ Évaluation automatique MultiHead + Tesseract..."
 python3 /workspace/script/eval_multihead.py \
   --config "$CONFIG_MULTI" \
-  --checkpoint "./output/rec_ppocr_v3_latin/latest" \
+  --checkpoint "./workspace/output/rec_ppocr_v3_latin/latest" \
   --dict "$DICT" \
   --val "$OUT_DIR/val.txt" \
   --base "$BASE_DIR"
