@@ -10,7 +10,7 @@ ANNO_DIR_FR="$BASE_DIR/img_fr/labels.json"
 ANNO_DIR="$BASE_DIR/anno"
 OUT_DIR="$BASE_DIR/output"
 
-CONFIG_MULTI="/workspace/config/latin_PP-OCRv3_rec.multihead.yml" # MultiHead (pour entraînement)
+CONFIG_MULTI="/workspace/config/en_PP-OCRv4_rec.yml" 
 DICT="/workspace/dict/latin_dict.txt"
 
 echo "=== launch_ocr_train.sh ==="
@@ -41,12 +41,8 @@ python3 script/json2crops.py \
   --png_compress 1 \
   --maxlen $MAXLEN
 
-if [ ! -s "$OUT_DIR/train.txt" ] || [ ! -s "$OUT_DIR/val.txt" ]; then
-  echo "❌ train.txt ou val.txt introuvable ou vide → arrêt"
-  exit 1
-fi
-
 # 2) Normalisation
+echo "[INFO] Normalize and validate dataset ..."
 python3 script/normalize_and_validate_dataset.py \
   --base "$BASE_DIR" \
   --out_base "$OUT_DIR" \
@@ -55,19 +51,20 @@ python3 script/normalize_and_validate_dataset.py \
 
 # 3) Entraînement OCR (toujours MultiHead)
 cd /opt/PaddleOCR
+MODEL_PATH=$(python3 -c "import yaml; print(yaml.safe_load(open('$CONFIG_MULTI'))['Global']['save_model_dir'])")
 echo "=== Lancement de l’entraînement (MultiHead) ==="
 python3 tools/train.py -c "$CONFIG_MULTI" \
   -o Train.dataset.label_file_list="[\"$OUT_DIR/train.txt\"]" \
   -o Eval.dataset.label_file_list="[\"$OUT_DIR/val.txt\"]" \
   -o Global.character_dict_path="$DICT" \
   -o Global.use_space_char=True \
-  -o Global.save_model_dir="/workspace/output/rec_ppocr_v3_latin"
+  -o Global.save_model_dir="$MODEL_PATH"
 
 # 4) Évaluation MultiHead + baseline Tesseract
 echo "▶ Évaluation automatique MultiHead + Tesseract..."
 python3 /workspace/script/eval_multihead.py \
   --config "$CONFIG_MULTI" \
-  --checkpoint "./workspace/output/rec_ppocr_v3_latin/latest" \
+  --checkpoint "$MODEL_PATH" \
   --dict "$DICT" \
   --val "$OUT_DIR/val.txt" \
   --base "$BASE_DIR"

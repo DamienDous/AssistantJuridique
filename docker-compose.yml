@@ -50,13 +50,14 @@ services:
       - RESUME=0
       - FLAGS_use_shared_memory=0
       - CUDA_VISIBLE_DEVICES=0
-      - FLAGS_fraction_of_gpu_memory_to_use=0.6
+      - FLAGS_fraction_of_gpu_memory_to_use=1
     gpus: all
     volumes:
       - ${HOST_DATA_DIR_LONG}/img:/workspace/img
+      - ${HOST_DATA_DIR_LONG}/img_fr:/workspace/img_fr
       - ${HOST_DATA_DIR_LONG}/anno:/workspace/anno
       - ./train_long/output:/workspace/output
-      - ./train_long/output:/workspace/output
+      - ./train_long/checkpoints:/opt/PaddleOCR/output
       - ./train_long/crops:/workspace/crops
       - ./eval:/workspace/eval
       - ./OCR/PADDLE_TRAINING/script:/workspace/script
@@ -85,6 +86,7 @@ services:
     gpus: all
     volumes:
       - ${HOST_DATA_DIR_SHORT}/img:/workspace/img
+      - ${HOST_DATA_DIR_SHORT}/img_fr:/workspace/img_fr
       - ${HOST_DATA_DIR_SHORT}/anno:/workspace/anno
       - ./train_short/output:/workspace/output
       - ./train_short/checkpoints:/opt/PaddleOCR/output

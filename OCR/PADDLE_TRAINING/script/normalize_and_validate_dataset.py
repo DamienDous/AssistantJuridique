@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse, os, cv2, sys, hashlib
+from utils_count import compute_global_count, should_skip
 
 CACHE_VERSION = "PIPELINE_NORMALIZE_VERSION=v3"  # bump si la logique change
 
@@ -90,50 +91,48 @@ def make_fingerprint(base, out_base):
     return agg.hexdigest()
 
 NORMALIZE_MAP = {
+    # tirets divers → -
     "−": "-",
     "‐": "-",
     "‒": "-",
+    "–": "-",   # en-dash
+    "—": "-",   # em-dash
+    "―": "-",
     "-": "-",
-    "⁄": "/",
-    "∗": "*",
+
+    # ponctuation
     "…": "...",
     "“": '"',
     "”": '"',
     "‘": "'",
     "’": "'",
-    "≥": ">=",
-    "≤": "<=",
-    "≈": "~",
+
+    # autres symboles utiles
+    "⁄": "/",
+    "∗": "*",
     "÷": "/",
     "×": "x",
     "©": "(c)",
     "®": "(R)",
     "♯": "#",
-    "●": "*",
-    "•": "*",
-    "⦁": "*",
-    "☐": "[ ]",
-    "☒": "[x]",
-    "✓": "v",
-    "▶": ">",
-    "∑": "SUM",
-    "Σ": "SUM",
+
+    # lettres grecques → on garde le label
+    "Δ": "Delta",
+    "Λ": "Lambda",
     "π": "pi",
     "λ": "lambda",
     "γ": "gamma",
     "ν": "nu",
     "η": "eta",
     "φ": "phi",
-    "Δ": "Delta",
-    "Λ": "Lambda",
-    "–": "-",   # en-dash
-    "—": "-",   # em-dash
+    "Σ": "SUM",
+    "∑": "SUM",
+
+    # nettoyage
     "¨": "",    # tréma isolé → supprime
     "Ø": "O",   # O barré → O
-    "¼": "1/4",
-    "½": "1/2",
-    "¾": "3/4",
 }
+
 
 def normalize_text(text):
     out = []
@@ -170,26 +169,26 @@ def process_split(base, split, max_len, expect_width, hstride, drop_too_long, ch
         for lineno, raw in enumerate(f, 1):
             sp = split_line(raw)
             if not sp:
-                print(f"[DEBUG-{split}] ligne {lineno}: vide ou mal formée → DROP")
+                print(f"[DEBUG-{split}] ligne {lineno}: vide ou mal formée → DROP | contenu brut='{raw.strip()}'")
                 dropped += 1
                 continue
             p, lab = sp
             if not lab:
-                print(f"[DEBUG-{split}] ligne {lineno}: label vide → DROP")
+                print(f"[DEBUG-{split}] ligne {lineno}: label vide → DROP | chemin='{p}'")
                 dropped += 1
                 continue
 
             if max_len and len(lab) > max_len:
-                print(f"[DEBUG-{split}] ligne {lineno}: label trop long ({len(lab)}) → tronqué à {max_len}")
+                print(f"[DEBUG-{split}] ligne {lineno}: label trop long ({len(lab)}) → tronqué à {max_len} | texte='{lab[:50]}...'")
                 lab = lab[:max_len]
 
             if len(lab) > limit:
                 if drop_too_long:
-                    print(f"[DEBUG-{split}] ligne {lineno}: label {len(lab)} > {limit} (timesteps) → DROP")
+                    print(f"[DEBUG-{split}] ligne {lineno}: label {len(lab)} > {limit} (timesteps) → DROP | texte='{lab[:50]}...'")
                     dropped += 1
                     continue
                 else:
-                    print(f"[DEBUG-{split}] ligne {lineno}: tronqué à {limit} (timesteps)")
+                    print(f"[DEBUG-{split}] ligne {lineno}: tronqué à {limit} (timesteps) | texte='{lab[:50]}...'")
                     lab = lab[:limit]
             
             lab = normalize_text(lab)
@@ -197,7 +196,7 @@ def process_split(base, split, max_len, expect_width, hstride, drop_too_long, ch
             if charset is not None:
                 bad_chars = [c for c in lab if c not in charset]
                 if bad_chars:
-                    print(f"[DEBUG-{split}] ligne {lineno}: caractères OOV {bad_chars} → DROP")
+                    print(f"[DEBUG-{split}] ligne {lineno}: caractères OOV {bad_chars} → DROP | texte='{lab}'")
                     oov += 1
                     continue
 
@@ -205,7 +204,7 @@ def process_split(base, split, max_len, expect_width, hstride, drop_too_long, ch
             img = cv2.imread(abs_p, cv2.IMREAD_UNCHANGED)
             img = ensure_bgr(img)
             if img is None or img.size == 0:
-                print(f"[DEBUG-{split}] ligne {lineno}: image introuvable/corrompue {abs_p} → DROP")
+                print(f"[DEBUG-{split}] ligne {lineno}: image introuvable/corrompue {abs_p} → DROP | label='{lab}'")
                 dropped += 1
                 continue
 
@@ -245,10 +244,8 @@ def main():
     out_base = os.path.abspath(args.out_base) if args.out_base else base
 
     os.makedirs(out_base, exist_ok=True)
-    cache_dir = os.path.join(out_base, '.cache')
-    os.makedirs(cache_dir, exist_ok=True)
-    hash_file = os.path.join(cache_dir, 'norm.sha256')
 
+    # Charger le charset
     charset = None
     if os.path.isfile(args.char):
         try:
@@ -258,19 +255,12 @@ def main():
         except Exception as e:
             print(f"[WARN] Impossible de lire charset.txt ({e}) -> filtre OOV désactivé.", file=sys.stderr)
 
-    new_hash = make_fingerprint(base=base, out_base=out_base)
-    old_hash = None
-    if os.path.isfile(hash_file):
-        try:
-            with open(hash_file, 'r', encoding='utf-8') as f:
-                old_hash = f.read().strip()
-        except Exception:
-            old_hash = None
+    # Compter les fichiers du dataset 
+    nb_total = compute_global_count(img_dir="img", json_dir="anno", img_fr_dir="img_fr")
 
-    if old_hash and old_hash == new_hash:
-        print("[CACHE] Normalisation inchangée, on skippe l'étape.")
+    if should_skip(out_base, nb_total, "norm"):
         return
-
+    
     print("▶ Normalisation & validation dataset (rebuild)")
     for split in ('train', 'val'):
         process_split(
@@ -283,12 +273,6 @@ def main():
             charset=charset,
             out_base=out_base
         )
-
-    try:
-        with open(hash_file, 'w', encoding='utf-8') as f:
-            f.write(new_hash + "\n")
-    except Exception as e:
-        print(f"[WARN] impossible d'écrire {hash_file}: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

@@ -3,6 +3,7 @@ import argparse, os, json, random, hashlib, time
 from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from utils_count import compute_global_count, should_skip
 
 # ----------------- ARGS -----------------
 def parse_args():
@@ -218,32 +219,22 @@ def main():
     args = parse_args()
     json_dir = Path(args.json_dir)
     img_dir  = Path(args.img_dir)
-    glob_dir  = Path(args.glob_dir)
+    glob_dir = Path(args.glob_dir)
     out_dir = glob_dir / "output"
     crops_dir = glob_dir / "crops"
     crops_dir.mkdir(parents=True, exist_ok=True)
 
-    cache_file = Path(args.cache_file) if args.cache_file else (out_dir / ".cache/json2crops.manifest.json")
+    # extensions valides pour images
+    img_exts = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp")
 
-    digest_now, imgs_list, jsons_list = build_inputs_digest(img_dir, json_dir)
-    cache = read_cache(cache_file)
-    same_digest = cache and cache.get("inputs_digest") == digest_now
-    files_exist = all((out_dir/f).exists() for f in ["train.txt","val.txt","test.txt"])
+    nb_total = compute_global_count(img_dir="img", json_dir="anno", img_fr_dir="img_fr")
 
-    if (not args.force) and same_digest and files_exist:
-        print(f"[CACHE] Unchanged inputs, skip json2crops. (digest={digest_now[:12]})")
+    if should_skip(out_dir, nb_total, "json"):
         return
 
+    # === Indexation JSON / Images ===
     idx_jsonstem, idx_origstem, idx_ph = index_json(json_dir)
-    img_exts = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp")
-    imgs = [Path(p) for p in imgs_list if Path(p).suffix.lower() in img_exts]
-
-    old_pairs = set()
-    if args.incremental and cache and isinstance(cache.get("pairs"), list):
-        for p in cache["pairs"]:
-            if isinstance(p, list) and len(p) == 2:
-                old_pairs.add(tuple(p))
-    old_pairs_frozen = frozenset(old_pairs)
+    imgs = [p for p in img_dir.iterdir() if p.suffix.lower() in img_exts]
 
     tasks = []
     warn_missing = 0
@@ -253,7 +244,7 @@ def main():
             warn_missing += 1
             continue
         tasks.append((str(ip), str(jp), str(crops_dir),
-                      bool(args.incremental), old_pairs_frozen,
+                      bool(args.incremental), frozenset(),
                       int(args.maxlen), args.save_format,
                       int(args.jpg_quality), int(args.png_compress),
                       int(args.target_h), int(args.target_w), int(args.hstride)))
@@ -294,13 +285,13 @@ def main():
 
     out_dir.mkdir(parents=True, exist_ok=True)
     def save_pairs(pairs, path):
-        with open(path, "w", encoding="utf-8") as f:
+        mode = "a" if path.exists() else "w"
+        with open(path, mode, encoding="utf-8") as f:
             for p, t in pairs:
-                # Nettoyage
                 if not p or not t:
                     continue
                 p = p.strip()
-                t = t.strip()
+                t = t.strip().replace("\t", " ").replace("\n", " ").replace("\r", " ")
                 if p == "" or t == "":
                     print("key deleted")
                     continue
@@ -309,24 +300,6 @@ def main():
     save_pairs(train, out_dir/'train.txt')
     save_pairs(val, out_dir/'val.txt')
     save_pairs(test, out_dir/'test.txt')
-
-    payload = {
-        "inputs_digest": digest_now,
-        "ts": int(time.time()),
-        "pairs": all_pairs,
-        "counts": {
-            "train": len(train),
-            "val": len(val),
-            "test": len(test),
-            "created": created,
-            "skipped_existing": skipped_existing,
-            "warn_missing_json": warn_missing,
-            "warn_empty_text": warn_empty,
-            "warn_json_bad": warn_json_bad,
-            "warn_img_bad": warn_img_bad
-        },
-    }
-    write_cache(cache_file, payload)
 
     print(f"[CROPS] total:{n} train:{len(train)} val:{len(val)} test:{len(test)} "
           f"created:{created} skipped_existing:{skipped_existing} "

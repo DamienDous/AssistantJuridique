@@ -137,46 +137,33 @@ def detect_text_boxes(model, post, img, shape_list):
 
     return boxes, None
 
-def debug_charset(cfg):
-    dict_path = cfg["Global"]["character_dict_path"]
-    use_space_char = cfg["Global"].get("use_space_char", True)
-
-    # lire le dictionnaire de base
-    with open(dict_path, "r", encoding="utf-8") as f:
-        characters = [line.strip() for line in f if line.strip()]
-
-    # ajouter l’espace si demandé
-    if use_space_char and " " not in characters:
-        characters.append(" ")
-
-    # MultiHead gère 2 décodeurs :
-    # - CTC ajoute un "blank"
-    # - SAR ajoute <sos>/<eos>
-    ctc_classes = len(characters) + 2   # +2 pour blank
-    sar_classes = len(characters) + 4   # +2 pour <sos> et <eos>
-
-    print(f"[DEBUG] dict={dict_path}, base={len(characters)}, "
-          f"CTC={ctc_classes}, SAR={sar_classes}")
-
-    return ctc_classes, sar_classes
-
 def load_rec_model(cfg_path, ckpt_path):
     cfg = load_config(cfg_path)
-    # remplace ici le dict par ton fichier fixe
-    cfg["Global"]["character_dict_path"] = "/workspace/dict/latin_dict.txt"
-    cfg["Global"]["use_space_char"] = True
+    dict_path = cfg["Global"]["character_dict_path"]
+    nb_chars = sum(1 for _ in open(dict_path, "r", encoding="utf-8"))
+    if cfg["Global"].get("use_space_char", False):
+        nb_chars += 1
+
+    ctc_classes  = nb_chars + 1
+    sar_classes  = 0
+    nrtr_classes = nb_chars + 4
 
     post_process_class = build_post_process(cfg["PostProcess"])
 
     if cfg["Architecture"]["Head"]["name"] == "MultiHead":
-        ctc_classes, sar_classes = debug_charset(cfg)
         out_channels_list = {
             "CTCLabelDecode": ctc_classes,
-            "SARLabelDecode": sar_classes
+            "SARLabelDecode": sar_classes,
+            "NRTRLabelDecode": nrtr_classes
         }
         cfg["Architecture"]["Head"]["out_channels_list"] = out_channels_list
         print(f"[DEBUG] out_channels_list forcé → {out_channels_list}")
-        print("[DEBUG] Head normal")
+
+        print("[DEBUG] nb_chars:", nb_chars)
+        print("[DEBUG] CTC out_channels:", ctc_classes)
+        print("[DEBUG] SAR out_channels:", sar_classes)
+        print("[DEBUG] NRTR out_channels:", nrtr_classes)
+        print("[DEBUG] cfg[Head][out_channels_list]:", cfg["Architecture"]["Head"]["out_channels_list"])
 
     model = build_model(cfg["Architecture"])
     load_model(cfg, model, model_type='rec')
@@ -252,25 +239,30 @@ def infer_batch(rec_model, rec_post, crops):
     if len(crops) == 0:
         return []
 
-    # Prétraitement batch
-    imgs = [resize_norm_img_rec(crop) for crop in crops]
-    x = np.stack(imgs)  # (N, C, H, W)
-    x = paddle.to_tensor(x, dtype="float32")
+    try:
+        imgs = []
+        for i, crop in enumerate(crops):
+            im = resize_norm_img_rec(crop)
+            imgs.append(im)
 
-    preds = rec_model(x)
+        x = np.stack(imgs)
+        x = paddle.to_tensor(x, dtype="float32")
+        preds = rec_model(x)
+        results = rec_post(preds)
+        texts = []
+        for i, res in enumerate(results):
+            if isinstance(res, tuple):
+                txt, score = res
+            else:
+                txt, score = res, None
+            texts.append(txt)
 
-    results = rec_post(preds)
+        return texts
 
-    texts = []
-    for i, res in enumerate(results):
-        if isinstance(res, tuple):
-            txt, score = res
-        else:
-            txt, score = res, None
-        print(f"[DEBUG][infer_batch] crop[{i}] -> '{txt}' (score={score}) shape={crops[i].shape}")
-        texts.append(txt)
-
-    return texts
+    except Exception as e:
+        print(f"[ERROR] infer_batch failed: {e}")
+        import traceback; traceback.print_exc()
+        return []
 
 def load_gt_bboxes(json_path):
     data = json.load(open(json_path, encoding="utf-8"))
@@ -427,29 +419,52 @@ def ocr_page(det_model, det_post, rec_model, rec_post, img_path):
 
     # 1. Détection
     dt_boxes = get_dt_boxes(det_model, det_post, img)
-    if not isinstance(dt_boxes, list) or not dt_boxes:
+    if not dt_boxes:
         print(f"[WARN] Aucune box détectée pour {img_path}")
         return ""
 
-    # 2. Découpage
-    crops = []
+    # 2. Crops + coordonnées
+    items = []
+    success, failed = 0, 0
     for box in dt_boxes:
         try:
             crop = get_rotate_crop_image(img, box)
-            crops.append(crop)
+            text = infer_batch(rec_model, rec_post, [crop])[0]
+
+            x, y = np.min(box[:,0]), np.min(box[:,1])
+            items.append((y, x, text))
+
         except Exception as e:
             print(f"[WARN] crop raté pour box={box}: {e}")
 
-    print(f"[DEBUG][ocr_page] nb_crops={len(crops)}")
+    print(f"[DEBUG][ocr_page] crops réussis={success}, échecs={failed}, total={len(dt_boxes)}")
 
-    if not crops:
+    if not items:
         return ""
 
-    # 3. Reconnaissance
-    texts = infer_batch(rec_model, rec_post, crops)
+    # 3. Tri Y puis X
+    items.sort(key=lambda t: (t[0], t[1]))
 
-    # 4. Assemblage (simple concaténation avec espace)
-    final_text = " ".join(texts)
+    # 4. Regroupement en lignes
+    lines = []
+    current_line = []
+    last_y = None
+    y_threshold = 15  # tolérance verticale pour grouper les mots
+
+    for y, x, text in items:
+        if last_y is None or abs(y - last_y) < y_threshold:
+            current_line.append((x, text))
+            last_y = y if last_y is None else (last_y + y) / 2
+        else:
+            current_line.sort(key=lambda t: t[0])
+            lines.append(" ".join([t[1] for t in current_line]))
+            current_line = [(x, text)]
+            last_y = y
+    if current_line:
+        current_line.sort(key=lambda t: t[0])
+        lines.append(" ".join([t[1] for t in current_line]))
+
+    final_text = "\n".join(lines)
     return final_text.strip()
 
 # --------------------------
@@ -458,11 +473,15 @@ def ocr_page(det_model, det_post, rec_model, rec_post, img_path):
 if __name__=="__main__":
     det_cfg = "/workspace/config/ch_PP-OCRv4_det_infer.yml"
     det_ckpt = "/workspace/models/ch_PP-OCRv4_det_infer/inference"
-    rec_cfg = "/workspace/config/latin_PP-OCRv3_rec.multihead.yml"
-    rec_ckpt = "/workspace/output/rec_ppocr_v3_latin/latest.pdparams"
+    rec_cfg = "/workspace/output/rec_ppocr_v4/config.yml"
+    rec_ckpt = "/workspace/output/rec_ppocr_v4/best_accuracy.pdparams"
 
-    pages_dir = "/workspace/img"     # dossier avec images
-    json_dir  = "/workspace/anno"      # JSON avec les GT
+    # Infos supplémentaires
+    model_name = "rec_ppocr_v4_1M_en_200K_fr_9_epochs"
+    epochs = 9   # à mettre à jour selon ton entraînement
+
+    pages_dir = "/workspace/img"
+    json_dir  = "/workspace/anno"
     gt_dir    = "/workspace/gt"
 
     print(f"[INFO] pages_dir={pages_dir} exists={Path(pages_dir).exists()}")
@@ -480,53 +499,63 @@ if __name__=="__main__":
     for ext in ["*.jpg", "*.jpeg", "*.png", "*.tif", "*.tiff"]:
         all_pages.extend(Path(pages_dir).glob(ext))
 
-    with open(results_csv, "w", newline="", encoding="utf-8") as csvfile:
+    count = 0
+    for page_file in sorted(all_pages):
+        print(f"[PAGE] Processing {page_file.name}")
+        json_file = Path(json_dir) / f"{page_file.stem}.json"
+
+        if not json_file.exists():
+            print(f"[SKIP] Pas de JSON pour {page_file.name}")
+            continue
+
+        ref_full = load_gt_from_json(json_file)
+        if not ref_full:
+            print(f"[SKIP] GT vide pour {page_file.name}")
+            continue
+
+        pred_paddle = ocr_page(det_model, det_post, rec_model, rec_post, str(page_file))
+        pred_tess = pytesseract.image_to_string(cv2.imread(str(page_file)), lang="eng").strip()
+
+        cer_p, wer_p = cer(ref_full, pred_paddle), wer(ref_full, pred_paddle)
+        cer_t, wer_t = cer(ref_full, pred_tess), wer(ref_full, pred_tess)
+
+        total_cer_paddle.append(cer_p)
+        total_wer_paddle.append(wer_p)
+        total_cer_tess.append(cer_t)
+        total_wer_tess.append(wer_t)
+
+        count += 1
+        if count > 30:
+            break
+        print(f"name: {page_file.name}  count: {count}  cer_p={cer_p:.3f}, wer_p={wer_p:.3f}")
+
+    mean_cer_paddle = sum(total_cer_paddle) / len(total_cer_paddle) if total_cer_paddle else 1.0
+    mean_wer_paddle = sum(total_wer_paddle) / len(total_wer_paddle) if total_wer_paddle else 1.0
+    mean_cer_tess = sum(total_cer_tess) / len(total_cer_tess) if total_cer_tess else 1.0
+    mean_wer_tess = sum(total_wer_tess) / len(total_wer_tess) if total_wer_tess else 1.0
+
+    # ⬇️ On ajoute model_name et epochs
+    with open(results_csv, "a", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
+        if csvfile.tell() == 0:  # écrire l'entête si fichier vide
+            writer.writerow([
+                "model_name", "epochs", "nb_pages",
+                "mean_cer_paddle", "mean_wer_paddle",
+                "mean_cer_tess", "mean_wer_tess"
+            ])
         writer.writerow([
-            "page", "ref", "paddle", "tesseract",
-            "cer_paddle", "wer_paddle", "cer_tess", "wer_tess"
+            model_name, epochs, count,
+            mean_cer_paddle, mean_wer_paddle,
+            mean_cer_tess, mean_wer_tess
         ])
 
-        count = 0
-        for page_file in sorted(all_pages):
-            print(f"[PAGE] Processing {page_file.name}")
-            json_file = Path(json_dir) / f"{page_file.stem}.json"
+    print(f"[OK] Statistiques globales enregistrées dans {results_csv}")
 
-            if not json_file.exists():
-                print(f"[SKIP] Pas de JSON pour {page_file.name}")
-                continue
-
-            ref_full = load_gt_from_json(json_file)  # <-- nouvelle fonction décrite avant
-            if not ref_full:
-                print(f"[SKIP] GT vide pour {page_file.name}")
-                continue
-
-            # OCR Paddle (détection + reco)
-            pred_paddle = ocr_page(det_model, det_post, rec_model, rec_post, str(page_file))
-
-            # OCR Tesseract (baseline)
-            pred_tess = pytesseract.image_to_string(
-                cv2.imread(str(page_file)), lang="eng"
-            ).strip()
-
-            print(f"[DEBUG] ref='{ref_full[:30]}...' pred_paddle='{pred_paddle[:30]}...'")
-
-            cer_p, wer_p = cer(ref_full, pred_paddle), wer(ref_full, pred_paddle)
-            cer_t, wer_t = cer(ref_full, pred_tess), wer(ref_full, pred_tess)
-
-            total_cer_paddle.append(cer_p); total_wer_paddle.append(wer_p)
-            total_cer_tess.append(cer_t); total_wer_tess.append(wer_t)
-
-            writer.writerow([
-                page_file.name, ref_full, pred_paddle, pred_tess,
-                cer_p, wer_p, cer_t, wer_t
-            ])
-            count += 1
-
+    print(f"[SUMMARY] Model={model_name}, Epochs={epochs}")
     print(f"[SUMMARY] Pages traitées: {count}")
     print("=== Résumé global ===")
-    print(f"CER Paddle   : {np.mean(total_cer_paddle) if total_cer_paddle else 'VIDE'}")
-    print(f"WER Paddle   : {np.mean(total_wer_paddle) if total_wer_paddle else 'VIDE'}")
-    print(f"CER Tesseract: {np.mean(total_cer_tess) if total_cer_tess else 'VIDE'}")
-    print(f"WER Tesseract: {np.mean(total_wer_tess) if total_wer_tess else 'VIDE'}")
+    print(f"CER Paddle   : {mean_cer_paddle:.3f}")
+    print(f"WER Paddle   : {mean_wer_paddle:.3f}")
+    print(f"CER Tesseract: {mean_cer_tess:.3f}")
+    print(f"WER Tesseract: {mean_wer_tess:.3f}")
     print(f"Détails → {results_csv}")
