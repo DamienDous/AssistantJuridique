@@ -5,6 +5,8 @@ trap 'echo "[ERROR] ${BASH_SOURCE[0]}:${LINENO} -> ${BASH_COMMAND}" >&2' ERR
 
 BASE_DIR="${1:-/workspace}"
 IMG_DIR="$BASE_DIR/img"
+IMG_DIR_FR="$BASE_DIR/img_fr"
+ANNO_DIR_FR="$BASE_DIR/img_fr/labels.json"
 ANNO_DIR="$BASE_DIR/anno"
 OUT_DIR="$BASE_DIR/output"
 
@@ -18,7 +20,15 @@ echo "DICT        : $DICT"
 
 # 1) Crops & labels
 echo "[INFO] Génération train/val.txt ..."
-# rm -f "$BASE_DIR/train.txt" "$BASE_DIR/val.txt"
+echo "[INFO] Import juri2crops ..."
+python3 script/juri2crops.py \
+  --img_dir "$IMG_DIR_FR" \
+  --labels "$ANNO_DIR_FR" \
+  --glob_dir "$BASE_DIR" \
+  --val_split 0.1 \
+  --test_split 0.1
+
+echo "[INFO] Import json2crops ..."
 MAXLEN=$(python3 -c "import yaml; print(yaml.safe_load(open('$CONFIG_MULTI'))['Global']['max_text_length'])")
 python3 script/json2crops.py \
   --json_dir "$ANNO_DIR" \
