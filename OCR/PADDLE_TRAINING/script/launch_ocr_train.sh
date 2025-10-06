@@ -10,26 +10,26 @@ ANNO_DIR_FR="$BASE_DIR/img_fr/labels.json"
 ANNO_DIR="$BASE_DIR/anno"
 OUT_DIR="$BASE_DIR/output"
 
-CONFIG_MULTI="/workspace/config/en_PP-OCRv4_rec.yml" 
+CONFIG="/workspace/config/en_PP-OCRv4_rec.yml" 
 DICT="/workspace/dict/latin_dict.txt"
 
 echo "=== launch_ocr_train.sh ==="
 echo "BASE_DIR    : $BASE_DIR"
-echo "CONFIG_MULTI: $CONFIG_MULTI"
+echo "CONFIG      : $CONFIG"
 echo "DICT        : $DICT"
 
 # 1) Crops & labels
 echo "[INFO] Génération train/val.txt ..."
 echo "[INFO] Import juri2crops ..."
-python3 script/juri2crops.py \
-  --img_dir "$IMG_DIR_FR" \
-  --labels "$ANNO_DIR_FR" \
-  --glob_dir "$BASE_DIR" \
-  --val_split 0.1 \
-  --test_split 0.1
+# python3 script/juri2crops.py \
+#   --img_dir "$IMG_DIR_FR" \
+#   --labels "$ANNO_DIR_FR" \
+#   --glob_dir "$BASE_DIR" \
+#   --val_split 0.1 \
+#   --test_split 0.1
 
 echo "[INFO] Import json2crops ..."
-MAXLEN=$(python3 -c "import yaml; print(yaml.safe_load(open('$CONFIG_MULTI'))['Global']['max_text_length'])")
+MAXLEN=$(python3 -c "import yaml; print(yaml.safe_load(open('$CONFIG'))['Global']['max_text_length'])")
 python3 script/json2crops.py \
   --json_dir "$ANNO_DIR" \
   --img_dir "$IMG_DIR" \
@@ -51,19 +51,43 @@ python3 script/normalize_and_validate_dataset.py \
 
 # 3) Entraînement OCR (toujours MultiHead)
 cd /opt/PaddleOCR
-MODEL_PATH=$(python3 -c "import yaml; print(yaml.safe_load(open('$CONFIG_MULTI'))['Global']['save_model_dir'])")
+MODEL_PATH=$(python3 -c "import yaml; print(yaml.safe_load(open('$CONFIG'))['Global']['save_model_dir'])")
+
+# Détermination du modèle à charger
+LAST_EPOCH_PATH=""
+if [ -d "$MODEL_PATH" ]; then
+  # Cherche un checkpoint 'latest' ou 'best_accuracy'
+  if [ -f "$MODEL_PATH/latest.pdparams" ]; then
+    LAST_EPOCH_PATH="$MODEL_PATH/latest"
+  elif [ -f "$MODEL_PATH/best_accuracy.pdparams" ]; then
+    LAST_EPOCH_PATH="$MODEL_PATH/best_accuracy"
+  else
+    # sinon, cherche le dernier epoch sauvegardé
+    LAST_EPOCH_PATH=$(ls -1t "$MODEL_PATH"/*.pdparams 2>/dev/null | head -n1 | sed 's/\.pdparams$//')
+  fi
+fi
+
+if [ -n "$LAST_EPOCH_PATH" ]; then
+  echo "[INFO] Reprise depuis le dernier checkpoint : $LAST_EPOCH_PATH"
+  PRETRAINED_OPT="-o Global.pretrained_model=$LAST_EPOCH_PATH"
+else
+  PRETRAINED_OPT=""
+  echo "[INFO] Aucun checkpoint trouvé, on utilisera le pretrained_model du YAML."
+fi
+
 echo "=== Lancement de l’entraînement (MultiHead) ==="
-python3 tools/train.py -c "$CONFIG_MULTI" \
+python3 tools/train.py -c "$CONFIG" \
   -o Train.dataset.label_file_list="[\"$OUT_DIR/train.txt\"]" \
   -o Eval.dataset.label_file_list="[\"$OUT_DIR/val.txt\"]" \
   -o Global.character_dict_path="$DICT" \
   -o Global.use_space_char=True \
-  -o Global.save_model_dir="$MODEL_PATH"
+  -o Global.save_model_dir="$MODEL_PATH" \
+  $PRETRAINED_OPT
 
 # 4) Évaluation MultiHead + baseline Tesseract
 echo "▶ Évaluation automatique MultiHead + Tesseract..."
 python3 /workspace/script/eval_multihead.py \
-  --config "$CONFIG_MULTI" \
+  --config "$CONFIG" \
   --checkpoint "$MODEL_PATH" \
   --dict "$DICT" \
   --val "$OUT_DIR/val.txt" \
