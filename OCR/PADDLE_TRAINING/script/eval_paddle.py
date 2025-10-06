@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os, cv2, csv, json, paddle, yaml, math
+import os, cv2, csv, json, paddle, yaml
+import unicodedata, regex as re
 import numpy as np
 from pathlib import Path
 import pytesseract
@@ -17,8 +18,63 @@ from ppocr.data import create_operators, transform
 # Metrics
 # --------------------------
 
-def cer(ref, hyp): return lev_dist(ref, hyp) / max(1, len(ref))
-def wer(ref, hyp): return lev_dist(" ".join(ref.split()), " ".join(hyp.split())) / max(1, len(ref.split()))
+def normalize_text(txt):
+    """
+    Normalise le texte OCR et GT avant calcul des métriques :
+    - NFKC Unicode (évitent les variantes de même caractère)
+    - guillemets / tirets / apostrophes uniformisés
+    - ligatures œ → oe, æ → ae
+    - collapse des espaces
+    - suppression des césures ("-\n")
+    """
+    if not txt:
+        return ""
+    # Unicode standardisation
+    txt = unicodedata.normalize("NFKC", txt)
+
+    # Guillemets / apostrophes / tirets
+    txt = txt.replace("’", "'").replace("‘", "'")
+    txt = txt.replace("“", '"').replace("”", '"')
+    txt = txt.replace("–", "-").replace("—", "-")
+
+    # Ligatures
+    txt = txt.replace("œ", "oe").replace("Œ", "Oe")
+    txt = txt.replace("æ", "ae").replace("Æ", "Ae")
+
+    # Hyphénation (fin de ligne)
+    txt = re.sub(r"-\s*\n", "", txt)
+
+    # Collapse espaces
+    txt = re.sub(r"\s+", " ", txt.strip())
+
+    # Lowercase (ou désactive si tu veux garder la casse)
+    txt = txt.lower()
+
+    return txt
+
+def cer(ref, hyp):
+    ref = normalize_text(ref)
+    hyp = normalize_text(hyp)
+    return lev_dist(ref, hyp) / max(1, len(ref))
+
+def tokenize_words(txt):
+    """Découpage français : garde les apostrophes internes (ex: l'avocat)"""
+    return re.findall(r"[0-9\p{L}]+(?:'[0-9\p{L}]+)*", txt, flags=re.UNICODE)
+
+def wer(ref, hyp):
+    ref_tokens = tokenize_words(normalize_text(ref))
+    hyp_tokens = tokenize_words(normalize_text(hyp))
+    import numpy as np
+    dp = np.zeros((len(ref_tokens)+1, len(hyp_tokens)+1), dtype=int)
+    for i in range(len(ref_tokens)+1):
+        dp[i,0]=i
+    for j in range(len(hyp_tokens)+1):
+        dp[0,j]=j
+    for i in range(1,len(ref_tokens)+1):
+        for j in range(1,len(hyp_tokens)+1):
+            cost = 0 if ref_tokens[i-1]==hyp_tokens[j-1] else 1
+            dp[i,j]=min(dp[i-1,j]+1, dp[i,j-1]+1, dp[i-1,j-1]+cost)
+    return dp[len(ref_tokens),len(hyp_tokens)]/max(1,len(ref_tokens))
 
 # --------------------------
 # Chargement Modèles
@@ -142,25 +198,6 @@ def get_dt_boxes(det_model, det_post, img, img_path):
 
     return boxes
 
-def debug_draw_boxes(img, boxes, page_name="page"):
-    """
-    Trace les bounding boxes détectées sur une copie de l'image.
-    Sauvegarde le résultat dans /workspace/debug_boxes.
-    """
-    debug_dir = "/workspace/debug_boxes"
-    os.makedirs(debug_dir, exist_ok=True)
-
-    vis = img.copy()
-    for i, box in enumerate(boxes):
-        box = np.array(box).reshape(-1, 1, 2).astype(int)
-        cv2.polylines(vis, [box], isClosed=True, color=(0, 0, 255), thickness=2)
-        cv2.putText(vis, str(i), tuple(box[0][0]), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5, (255, 0, 0), 1, cv2.LINE_AA)
-
-    out_path = os.path.join(debug_dir, f"{page_name}_debug.png")
-    cv2.imwrite(out_path, vis)
-    print(f"[DEBUG] Boxes visualisées → {out_path}")
-
 def resize_norm_img_det(img, limit_side_len=960, limit_type='min'):
     """
     Prétraitement officiel PP-OCR pour la détection.
@@ -185,6 +222,25 @@ def resize_norm_img_det(img, limit_side_len=960, limit_type='min'):
 
     img = img.transpose((2, 0, 1))  # HWC → CHW
     return img, (resize_h, resize_w)
+
+def debug_draw_boxes(img, boxes, page_name="page"):
+    """
+    Trace les bounding boxes détectées sur une copie de l'image.
+    Sauvegarde le résultat dans /workspace/debug_boxes.
+    """
+    debug_dir = "/workspace/debug_boxes"
+    os.makedirs(debug_dir, exist_ok=True)
+
+    vis = img.copy()
+    for i, box in enumerate(boxes):
+        box = np.array(box).reshape(-1, 1, 2).astype(int)
+        cv2.polylines(vis, [box], isClosed=True, color=(0, 0, 255), thickness=2)
+        cv2.putText(vis, str(i), tuple(box[0][0]), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (255, 0, 0), 1, cv2.LINE_AA)
+
+    out_path = os.path.join(debug_dir, f"{page_name}_debug.png")
+    cv2.imwrite(out_path, vis)
+    print(f"[DEBUG] Boxes visualisées → {out_path}")
 
 # --------------------------
 # Reconnaissance
@@ -292,7 +348,7 @@ def find_best_cut_region(img, max_width=320, min_width=40, search_back=80, windo
     return best_col
 
 # --------------------------
-# OCR complet d'une page
+# 
 # --------------------------
 def load_gt_from_json(json_path, sort_by_position=True):
     with open(json_path, "r", encoding="utf-8") as f:
@@ -321,7 +377,7 @@ def load_gt_from_json(json_path, sort_by_position=True):
     full_text = " ".join([it[2] for it in items])
     return full_text.strip()
 
-def split_long_crop(img, max_ratio=320/40*6, min_cut=40):
+def split_long_crop(img, max_ratio=320/40*2, min_cut=40):
     """
     Combine la logique de split_long_crop (géométrique) et de split_crop_smart (visuelle).
     Découpe les lignes trop longues pour que chaque sous-image respecte w/h <= max_ratio.
@@ -399,16 +455,14 @@ def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path):
 
             texts = ''
             for i, sub_crop in enumerate(sub_crops):
-                texts += pytesseract.image_to_string(sub_crop, lang="eng").strip()
-
-                # norm_crop  = resize_norm_img_rec(sub_crop)
-                # t = infer_batch(rec_model, rec_post, rec_ops, [norm_crop ], f"{Path(img_path).stem}_{nb}_{i}")
-                # if t[0][0]:
-                #     success += 1
-                #     texts += " "
-                #     texts += t[0][0]
-                # else:
-                #     failed += 1
+                norm_crop  = resize_norm_img_rec(sub_crop)
+                t = infer_batch(rec_model, rec_post, rec_ops, [norm_crop ], f"{Path(img_path).stem}_{nb}_{i}")
+                if t[0][0]:
+                    success += 1
+                    texts += " "
+                    texts += t[0][0]
+                else:
+                    failed += 1
             
             x, y = np.min(box[:,0]), np.min(box[:,1])
             items.append((y, x, texts))
@@ -428,7 +482,10 @@ def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path):
     lines = []
     current_line = []
     last_y = None
-    y_threshold = 15  # tolérance verticale pour grouper les mots
+    # seuil dynamique basé sur la médiane de la hauteur des boxes
+    heights = [np.linalg.norm(b[0]-b[3]) for b in dt_boxes]
+    y_threshold = np.median(heights)*0.6 if heights else 15
+    print(f"[DEBUG] y_threshold dynamique = {y_threshold:.1f}")
 
     for y, x, text in items:
         if last_y is None or abs(y - last_y) < y_threshold:
@@ -445,6 +502,21 @@ def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path):
 
     final_text = "\n".join(lines)
     return final_text.strip()
+
+def diff_lines(ref, hyp, out_path):
+    """Compare ligne par ligne et écrit un rapport simple des différences."""
+    ref_lines = normalize_text(ref).splitlines()
+    hyp_lines = normalize_text(hyp).splitlines()
+    maxlen = max(len(ref_lines), len(hyp_lines))
+    report = []
+    for i in range(maxlen):
+        gt = ref_lines[i] if i < len(ref_lines) else ""
+        pr = hyp_lines[i] if i < len(hyp_lines) else ""
+        if gt != pr:
+            report.append(f"--- Ligne {i+1} ---\nGT : {gt}\nPR : {pr}\n")
+    if report:
+        Path(out_path).write_text("\n".join(report), encoding="utf-8")
+        print(f"[INFO] Rapport d'écarts écrit dans {out_path}")
 
 # --------------------------
 # Main
@@ -498,18 +570,28 @@ if __name__=="__main__":
         pred_tess = pytesseract.image_to_string(cv2.imread(str(page_file)), lang="eng").strip()
         print(pred_paddle)
 
-        cer_p, wer_p = cer(ref_full, pred_paddle), wer(ref_full, pred_paddle)
-        cer_t, wer_t = cer(ref_full, pred_tess), wer(ref_full, pred_tess)
+        # Normalisation
+        ref_full = normalize_text(ref_full)
+        pred_paddle = normalize_text(pred_paddle)
+        pred_tess = normalize_text(pred_tess)
 
-        total_cer_paddle.append(cer_p)
-        total_wer_paddle.append(wer_p)
-        total_cer_tess.append(cer_t)
-        total_wer_tess.append(wer_t)
+        # Scores
+        cer_paddle = cer(ref_full, pred_paddle)
+        wer_paddle = wer(ref_full, pred_paddle)
+        cer_tess = cer(ref_full, pred_tess)
+        wer_tess = wer(ref_full, pred_tess)
+
+        if cer_paddle > 0.2 or wer_paddle > 0.3:
+            diff_lines(ref_full, pred_paddle, f"/workspace/eval/diff_{page_file.stem}.txt")
+
+        total_cer_paddle.append(cer_paddle)
+        total_wer_paddle.append(wer_paddle)
+        total_cer_tess.append(cer_tess)
+        total_wer_tess.append(wer_tess)
 
         count += 1
         if count >= 10:
             break
-        print(f"name: {page_file.name}  count: {count}  cer_p={cer_p:.3f}, wer_p={wer_p:.3f}")
 
     mean_cer_paddle = sum(total_cer_paddle) / len(total_cer_paddle) if total_cer_paddle else 1.0
     mean_wer_paddle = sum(total_wer_paddle) / len(total_wer_paddle) if total_wer_paddle else 1.0
