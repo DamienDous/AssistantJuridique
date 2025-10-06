@@ -117,7 +117,7 @@ services:
       - ./train_short/img:/workspace/img
       - ./OCR/PADDLE_TRAINING/script:/workspace/script
       - ./OCR/PADDLE_TRAINING/dict:/workspace/dict
-      - ./OCR/PADDLE_TRAINING/config_short:/workspace/config
+      - ./OCR/PADDLE_TRAINING/config_eval:/workspace/config
       - ./OCR/PADDLE_TRAINING/pretrain_models:/workspace/pretrain_models
       - ./eval:/workspace/eval
       - ./debug_crops:/workspace/debug_crops
