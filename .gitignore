@@ -11,6 +11,7 @@ eval/
 debug_boxes/
 debug_crops/
 models/
+PaddleScript/
 
 # 🧪 Environnements Python
 .env/
