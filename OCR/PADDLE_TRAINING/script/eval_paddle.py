@@ -12,7 +12,7 @@ from ppocr.modeling.architectures import build_model
 from ppocr.postprocess import DBPostProcess
 from ppocr.postprocess import build_post_process
 from ppocr.utils.save_load import load_model
-from ppocr.data import create_operators, transform
+from ppocr.data import create_operators
 
 # --------------------------
 # Metrics
@@ -223,6 +223,20 @@ def resize_norm_img_det(img, limit_side_len=960, limit_type='min'):
     img = img.transpose((2, 0, 1))  # HWC → CHW
     return img, (resize_h, resize_w)
 
+def bbox_iou(boxA, boxB):
+    """Calcule l'IoU entre deux quadrilatères ou rectangles."""
+    boxA = np.array(boxA).reshape(-1, 2)
+    boxB = np.array(boxB).reshape(-1, 2)
+    xA = max(np.min(boxA[:,0]), np.min(boxB[:,0]))
+    yA = max(np.min(boxA[:,1]), np.min(boxB[:,1]))
+    xB = min(np.max(boxA[:,0]), np.max(boxB[:,0]))
+    yB = min(np.max(boxA[:,1]), np.max(boxB[:,1]))
+    interW, interH = max(0, xB-xA), max(0, yB-yA)
+    inter = interW * interH
+    areaA = (np.max(boxA[:,0]) - np.min(boxA[:,0])) * (np.max(boxA[:,1]) - np.min(boxA[:,1]))
+    areaB = (np.max(boxB[:,0]) - np.min(boxB[:,0])) * (np.max(boxB[:,1]) - np.min(boxB[:,1]))
+    return inter / (areaA + areaB - inter + 1e-6)
+
 def debug_draw_boxes(img, boxes, page_name="page"):
     """
     Trace les bounding boxes détectées sur une copie de l'image.
@@ -377,7 +391,7 @@ def load_gt_from_json(json_path, sort_by_position=True):
     full_text = " ".join([it[2] for it in items])
     return full_text.strip()
 
-def split_long_crop(img, max_ratio=320/40*2, min_cut=40):
+def split_long_crop(img, max_ratio=320/40*1.5, min_cut=40):
     """
     Combine la logique de split_long_crop (géométrique) et de split_crop_smart (visuelle).
     Découpe les lignes trop longues pour que chaque sous-image respecte w/h <= max_ratio.
@@ -425,7 +439,7 @@ def split_long_crop(img, max_ratio=320/40*2, min_cut=40):
 
     return crops
 
-def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path):
+def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path, type_rec):
     img = cv2.imread(img_path)
     if img is None:
         raise FileNotFoundError(f"Impossible de lire {img_path}")
@@ -436,6 +450,24 @@ def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path):
         print(f"[WARN] Aucune box détectée pour {img_path}")
         return ""
     
+    # Calcul IoU moyen entre boxes détectées et GT (si dispo)
+    json_gt = Path(img_path).with_suffix(".json")
+    mean_iou = None
+    if json_gt.exists():
+        with open(json_gt, "r", encoding="utf-8") as f:
+            gt_data = json.load(f)
+        gt_boxes = [np.array(c["bbox"]).reshape(-1,2) for c in gt_data.get("cells",[]) if "bbox" in c]
+        ious = []
+        for b in dt_boxes:
+            best = 0
+            for g in gt_boxes:
+                i = bbox_iou(b,g)
+                best = max(best,i)
+            if best>0: ious.append(best)
+        if ious:
+            mean_iou = np.mean(ious)
+            print(f"[INFO] IoU moyen des boxes détectées = {mean_iou:.3f}")
+
     # 2. Crops + coordonnées
     items = []
     success, failed = 0, 0
@@ -455,14 +487,21 @@ def ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, img_path):
 
             texts = ''
             for i, sub_crop in enumerate(sub_crops):
-                norm_crop  = resize_norm_img_rec(sub_crop)
-                t = infer_batch(rec_model, rec_post, rec_ops, [norm_crop ], f"{Path(img_path).stem}_{nb}_{i}")
-                if t[0][0]:
-                    success += 1
-                    texts += " "
-                    texts += t[0][0]
+                if type_rec == "tesseract":
+                    texts += pytesseract.image_to_string(
+                        sub_crop, lang="eng", config="--oem 1 --psm 7"
+                    ).strip()
+                elif type_rec == "paddle":
+                    norm_crop  = resize_norm_img_rec(sub_crop)
+                    t = infer_batch(rec_model, rec_post, rec_ops, [norm_crop ], f"{Path(img_path).stem}_{nb}_{i}")
+                    if t[0][0]:
+                        success += 1
+                        texts += " "
+                        texts += t[0][0]
+                    else:
+                        failed += 1
                 else:
-                    failed += 1
+                    print("[ERROR: rec model not found]")
             
             x, y = np.min(box[:,0]), np.min(box[:,1])
             items.append((y, x, texts))
@@ -547,6 +586,7 @@ if __name__=="__main__":
     Path(os.path.dirname(results_csv)).mkdir(parents=True, exist_ok=True)
 
     total_cer_paddle, total_wer_paddle, total_cer_tess, total_wer_tess = [], [], [], []
+    total_cer_det_paddle, total_wer_det_paddle = [], []
 
     all_pages = []
     for ext in ["*.jpg", "*.jpeg", "*.png", "*.tif", "*.tiff"]:
@@ -566,33 +606,55 @@ if __name__=="__main__":
             print(f"[SKIP] GT vide pour {page_file.name}")
             continue
 
-        pred_paddle = ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, str(page_file))
+        # 1️⃣ Détection Paddle + Reconnaissance Paddle
+        pred_det_paddle = ""
+        try:
+            pred_det_paddle = ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, str(page_file), "paddle")
+        except Exception as e:
+            print(f"[WARN] échec OCR Paddle sur {page_file.name}: {e}")
+
+        # 2️⃣ Détection Paddle + Tesseract
+        pred_det_tess = ""
+        try:
+            pred_det_tess = ocr_page(det_model, det_post, rec_model, rec_post, rec_ops, str(page_file), "tesseract")
+        except Exception as e:
+            print(f"[WARN] échec Det+Tess sur {page_file.name}: {e}")
+
+        # 3️⃣ Tesseract (page entière)
         pred_tess = pytesseract.image_to_string(cv2.imread(str(page_file)), lang="eng").strip()
-        print(pred_paddle)
 
         # Normalisation
         ref_full = normalize_text(ref_full)
-        pred_paddle = normalize_text(pred_paddle)
+        pred_det_paddle = normalize_text(pred_det_paddle)
+        pred_det_tess = normalize_text(pred_det_tess)
         pred_tess = normalize_text(pred_tess)
 
         # Scores
-        cer_paddle = cer(ref_full, pred_paddle)
-        wer_paddle = wer(ref_full, pred_paddle)
-        cer_tess = cer(ref_full, pred_tess)
-        wer_tess = wer(ref_full, pred_tess)
+        cer_det_paddle = cer(ref_full, pred_det_paddle)
+        wer_det_paddle = wer(ref_full, pred_det_paddle)
+        cer_det_tess = cer(ref_full, pred_det_tess)
+        wer_det_tess = wer(ref_full, pred_det_tess)
+        cer_t, wer_t = cer(ref_full, pred_tess), wer(ref_full, pred_tess)
 
-        if cer_paddle > 0.2 or wer_paddle > 0.3:
-            diff_lines(ref_full, pred_paddle, f"/workspace/eval/diff_{page_file.stem}.txt")
+        if cer_det_tess > 0.2 or wer_det_tess > 0.3:
+            diff_lines(ref_full, pred_det_tess, f"/workspace/eval/diff_{page_file.stem}.txt")
 
-        total_cer_paddle.append(cer_paddle)
-        total_wer_paddle.append(wer_paddle)
-        total_cer_tess.append(cer_tess)
-        total_wer_tess.append(wer_tess)
+        total_cer_det_paddle.append(cer_det_paddle)
+        total_wer_det_paddle.append(wer_det_paddle)
+        total_cer_paddle.append(cer_det_tess)
+        total_wer_paddle.append(wer_det_tess)
+        total_cer_tess.append(cer_t)
+        total_wer_tess.append(wer_t)
+        print(f"[INFO] cer_det_paddle {cer_det_paddle} wer_det_paddle {wer_det_paddle}")
+        print(f"[INFO] cer_det_tess {cer_det_tess} wer_det_tess {wer_det_tess}")
+        print(f"[INFO] cer_tess {cer_t} wer_tess {wer_t}")
 
         count += 1
         if count >= 10:
             break
 
+    mean_cer_det_paddle = sum(total_cer_det_paddle) / len(total_cer_det_paddle) if total_cer_det_paddle else 1.0
+    mean_wer_det_paddle = sum(total_wer_det_paddle) / len(total_wer_det_paddle) if total_wer_det_paddle else 1.0
     mean_cer_paddle = sum(total_cer_paddle) / len(total_cer_paddle) if total_cer_paddle else 1.0
     mean_wer_paddle = sum(total_wer_paddle) / len(total_wer_paddle) if total_wer_paddle else 1.0
     mean_cer_tess = sum(total_cer_tess) / len(total_cer_tess) if total_cer_tess else 1.0
@@ -601,25 +663,29 @@ if __name__=="__main__":
     # ⬇️ On ajoute model_name et epochs
     with open(results_csv, "a", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
-        if csvfile.tell() == 0:  # écrire l'entête si fichier vide
+        if csvfile.tell() == 0:
             writer.writerow([
                 "model_name", "epochs", "nb_pages",
-                "mean_cer_paddle", "mean_wer_paddle",
+                "mean_cer_det_paddle", "mean_wer_det_paddle",
+                "mean_cer_det_tess", "mean_wer_det_tess",
                 "mean_cer_tess", "mean_wer_tess"
             ])
         writer.writerow([
             model_name, epochs, count,
+            mean_cer_det_paddle, mean_wer_det_paddle,
             mean_cer_paddle, mean_wer_paddle,
             mean_cer_tess, mean_wer_tess
-        ])
+])
 
     print(f"[OK] Statistiques globales enregistrées dans {results_csv}")
 
     print(f"[SUMMARY] Model={model_name}, Epochs={epochs}")
     print(f"[SUMMARY] Pages traitées: {count}")
     print("=== Résumé global ===")
-    print(f"CER Paddle   : {mean_cer_paddle:.3f}")
-    print(f"WER Paddle   : {mean_wer_paddle:.3f}")
-    print(f"CER Tesseract: {mean_cer_tess:.3f}")
-    print(f"WER Tesseract: {mean_wer_tess:.3f}")
+    print(f"CER Det+Paddle     : {mean_cer_det_paddle:.3f}")
+    print(f"WER Det+Paddle     : {mean_wer_det_paddle:.3f}")
+    print(f"CER Det+Tesseract  : {mean_cer_paddle:.3f}")
+    print(f"WER Det+Tesseract  : {mean_wer_paddle:.3f}")
+    print(f"CER Tesseract      : {mean_cer_tess:.3f}")
+    print(f"WER Tesseract      : {mean_wer_tess:.3f}")
     print(f"Détails → {results_csv}")

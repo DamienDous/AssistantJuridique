@@ -1,17 +1,17 @@
 Global:
   debug: false
   use_gpu: true
-  epoch_num: 30
+  epoch_num: 50
   log_smooth_window: 20
   print_batch_step: 10
-  save_model_dir: /workspace/output/rec_ppocr_v4
+  save_model_dir: /workspace/output/rec_ppocr_v4_1M_eng_50_epochs
   save_epoch_step: 10
   eval_batch_step:
   - 0
   - 2000
   cal_metric_during_train: true
-  pretrained_model: /workspace/pretrain_models/en_PP-OCRv4_rec_train/best_accuracy
-  checkpoints: null
+  pretrained_model: null
+  checkpoints: /workspace/output/rec_ppocr_v4_1M_eng_50_epochs/latest
   save_inference_dir: null
   use_visualdl: false
   infer_img: /workspace/img/sample.jpg

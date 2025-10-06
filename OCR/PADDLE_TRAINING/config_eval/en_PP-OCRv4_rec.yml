@@ -10,7 +10,7 @@ Global:
   - 0
   - 2000
   cal_metric_during_train: true
-  pretrained_model: /workspace/output/rec_ppocr_v4_1M_eng_50_epochs/latest
+  pretrained_model: /workspace/output/rec_ppocr_v4_1M_eng_50_epochs/best_accuracy
   checkpoints: null
   save_inference_dir: null
   use_visualdl: false

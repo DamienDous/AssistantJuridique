@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir \
     python-Levenshtein \
     pytesseract \
     opencv-python-headless \
-    pyyaml
+    pyyaml \
+    regex
 
 WORKDIR /workspace
 COPY OCR/PADDLE_TRAINING/script/eval_paddle.py /workspace/script/eval_paddle.py
