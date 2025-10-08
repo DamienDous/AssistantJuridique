@@ -1,0 +1,25 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+RUN pip install --no-cache-dir numpy \
+        opencv-python-headless \
+        pillow \
+        tqdm \
+        pandas \
+        shapely \
+        pyyaml \
+        spacy \
+        datasets
+
+RUN python -m spacy download fr_core_news_sm 
+
+# Copie scripts, config, dict
+COPY OCR/PADDLE_TRAINING/script   /workspace/script
+COPY OCR/PADDLE_TRAINING/dict     /workspace/dict
+
+# Normaliser fins de lignes & rendre exécutables
+RUN find /workspace -type f \( -name "*.sh" -o -name "*.py" \) -exec sed -i 's/\r$//' {} + \
+    && find /workspace -type f -name "*.sh" -exec chmod +x {} +
+
+WORKDIR /workspace
+ENTRYPOINT ["./pipeline_ocr.sh"]

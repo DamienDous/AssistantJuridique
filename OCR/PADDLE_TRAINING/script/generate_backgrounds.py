@@ -33,5 +33,3 @@ for i in range(50):
     cv2.imwrite(os.path.join(out_dir, f"bg_{i:03d}.png"), bg)
 
 print(f"✅ 50 fonds générés dans {out_dir}")
-
-python ./OCR/text_renderer/main.py --corpus_file ./corpus_juridique_600k.txt --font_dir ./OCR/text_renderer/fonts --bg_dir ./OCR/text_renderer/backgrounds --num_img 100000 --save_dir ./OCR/text_renderer/paddleocr_synth --img_height 64 --img_width 256 --chars_file ./OCR/PADDLE_TRAINING/dict/latin_dict.txt

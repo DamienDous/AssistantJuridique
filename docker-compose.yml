@@ -33,6 +33,45 @@ services:
              ls -l /workspace | head -n 20"
     restart: "no"
 
+  sync_gen:
+    image: alpine:3.20
+    volumes:
+      - ./crops_gen:/workspace
+      - type: bind
+        source: ${HOST_DATA_DIR_GEN}
+        target: /host
+    command: >
+      sh -c "apk add --no-cache rsync &&
+             rsync -av --delete --exclude 'crops/' --exclude 'output/' /host/ /workspace/ &&
+             echo '[sync_gen] done' &&
+             ls -l /workspace | head -n 20"
+    restart: "no"
+
+  create_crops:
+    build:
+      context: .
+      dockerfile: Dockerfile_generate_crops
+    container_name: crops_generator_container
+    working_dir: /workspace
+    depends_on:
+      sync_gen:
+        condition: service_completed_successfully
+    entrypoint: ["bash","-lc","/workspace/script/create_training_crops.sh /workspace"]
+    shm_size: "8g"
+    environment:
+      - DICT=/workspace/dict/latin_dict.txt
+    gpus: all
+    volumes:
+      - ${HOST_DATA_DIR_GEN}/img:/workspace/img
+      - ${HOST_DATA_DIR_GEN}/img_fr:/workspace/img_fr
+      - ${HOST_DATA_DIR_GEN}/anno:/workspace/anno
+      - ./train_short/output:/workspace/output
+      - ./train_short/checkpoints:/opt/PaddleOCR/output
+      - ./train_short/crops:/workspace/crops
+      - ./eval:/workspace/eval
+      - ./OCR/PADDLE_TRAINING/script:/workspace/script
+      - ./OCR/PADDLE_TRAINING/dict:/workspace/dict
+
   train_long:
     build:
       context: .
